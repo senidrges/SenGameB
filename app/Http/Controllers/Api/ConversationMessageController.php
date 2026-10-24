@@ -1,0 +1,48 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Actions\SendMessage;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreMessageRequest;
+use App\Http\Resources\MessageResource;
+use App\Models\Conversation;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
+
+class ConversationMessageController extends Controller
+{
+    /**
+     * A page of messages, oldest first. Pass `before` to load older ones.
+     */
+    public function index(Request $request, Conversation $conversation): AnonymousResourceCollection
+    {
+        Gate::authorize('view', $conversation);
+
+        $validated = $request->validate([
+            'before' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $messages = $conversation->messages()
+            ->with(['sender', 'replyTo.sender'])
+            ->when($request->date('before'), fn ($query, $before) => $query->where('created_at', '<', $before))
+            ->latest()
+            ->orderByDesc('id')
+            ->limit($validated['limit'] ?? 50)
+            ->get()
+            ->reverse()
+            ->values();
+
+        return MessageResource::collection($messages);
+    }
+
+    public function store(StoreMessageRequest $request, Conversation $conversation, SendMessage $sendMessage): JsonResponse
+    {
+        $message = $sendMessage->handle($conversation, $request->user(), $request->messageAttributes());
+
+        return MessageResource::make($message)->response()->setStatusCode(201);
+    }
+}
