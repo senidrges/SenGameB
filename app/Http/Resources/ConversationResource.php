@@ -38,7 +38,17 @@ class ConversationResource extends JsonResource
             'unread_count' => (int) ($this->unread_count ?? 0),
             'blocked_by_me' => $this->whenLoaded('participants', fn () => $other !== null && $this->viewerBlocked($viewer, $other)),
             'can_message' => $this->whenLoaded('participants', fn () => $other !== null && ! $this->isBlockedEitherWay($viewer, $other)),
+            'is_archived' => $this->whenLoaded('participants', fn () => $this->viewerPivot($viewer)?->archived_at !== null),
+            'is_locked' => $this->whenLoaded('participants', fn () => $this->viewerPivot($viewer)?->locked_at !== null),
         ];
+    }
+
+    /**
+     * Archive and lock are set per participant, on the viewer's own pivot row.
+     */
+    private function viewerPivot(User $viewer): ?object
+    {
+        return $this->participants->first(fn (User $participant) => $participant->is($viewer))?->pivot;
     }
 
     private function viewerBlocked(User $viewer, User $other): bool

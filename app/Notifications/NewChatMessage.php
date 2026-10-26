@@ -17,6 +17,19 @@ class NewChatMessage extends PushNotification
 
     public function toExpo(User $notifiable): ExpoMessage
     {
+        // Locked conversation: neither the sender nor the content, and no quick reply
+        if ($this->isLockedFor($notifiable)) {
+            return new ExpoMessage(
+                title: 'LoveGames',
+                body: 'Nouveau message',
+                data: [
+                    'type' => 'new_message',
+                    'conversationId' => $this->message->conversation_id,
+                ],
+                channelId: 'messages',
+            );
+        }
+
         $sender = $this->message->sender;
 
         return new ExpoMessage(
@@ -31,5 +44,13 @@ class NewChatMessage extends PushNotification
             channelId: 'messages',
             categoryId: self::CATEGORY,
         );
+    }
+
+    private function isLockedFor(User $notifiable): bool
+    {
+        return $this->message->conversation->participants()
+            ->whereKey($notifiable->id)
+            ->wherePivotNotNull('locked_at')
+            ->exists();
     }
 }

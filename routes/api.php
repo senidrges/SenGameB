@@ -12,7 +12,9 @@ use App\Http\Controllers\Api\Auth\SessionController;
 use App\Http\Controllers\Api\AvatarController;
 use App\Http\Controllers\Api\BlockController;
 use App\Http\Controllers\Api\ContactMatchController;
+use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\ConversationLockController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\GameActivationController;
@@ -74,6 +76,10 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::post('conversations/{conversation}/messages', [ConversationMessageController::class, 'store']);
     Route::post('conversations/{conversation}/read', [ConversationReadController::class, 'store']);
     Route::post('conversations/{conversation}/attachments', [AttachmentController::class, 'store']);
+    Route::post('conversations/{conversation}/archive', [ConversationArchiveController::class, 'store']);
+    Route::delete('conversations/{conversation}/archive', [ConversationArchiveController::class, 'destroy']);
+    Route::post('conversations/{conversation}/lock', [ConversationLockController::class, 'store']);
+    Route::delete('conversations/{conversation}/lock', [ConversationLockController::class, 'destroy']);
 
     Route::patch('messages/{message}', [MessageController::class, 'update']);
     Route::delete('messages/{message}', [MessageController::class, 'destroy']);
