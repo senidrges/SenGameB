@@ -1,30 +1,4 @@
-<!DOCTYPE html>
-<html lang="fr">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Règles de confidentialité – LoveGames</title>
-        <style>
-            :root { --text: #1a1a1a; --muted: #555; --accent: #0a7ea4; --bg: #fff; --border: #e5e5e5; }
-            @media (prefers-color-scheme: dark) {
-                :root { --text: #ececec; --muted: #a8a8a8; --accent: #4fb3d9; --bg: #121212; --border: #2c2c2c; }
-            }
-            body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-            main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
-            h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 4px; }
-            h2 { font-size: 1.2rem; margin: 36px 0 8px; padding-top: 16px; border-top: 1px solid var(--border); }
-            .updated { color: var(--muted); margin: 0 0 24px; }
-            a { color: var(--accent); }
-            ul { padding-left: 22px; }
-            li { margin: 4px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: .95rem; }
-            th, td { text-align: left; vertical-align: top; padding: 8px; border-bottom: 1px solid var(--border); }
-            th { color: var(--muted); font-weight: 600; }
-            .table-wrap { overflow-x: auto; }
-        </style>
-    </head>
-    <body>
-        <main>
+<x-public-layout title="Règles de confidentialité">
             <h1>Règles de confidentialité de LoveGames</h1>
             <p class="updated">Dernière mise à jour : 27 octobre 2026</p>
 
@@ -148,9 +122,9 @@
                 copie ou leur suppression. Vous pouvez modifier votre profil directement dans l'application.
             </p>
             <p>
-                Pour supprimer votre compte et les données associées, écrivez-nous à
-                <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a> depuis l'adresse e-mail de votre compte,
-                en indiquant votre pseudo. Nous traitons la demande sous 30 jours au plus.
+                Vous pouvez supprimer votre compte et les données associées directement dans l'application
+                (Profil → Supprimer mon compte), ou en suivant les indications de la page
+                <a href="{{ route('account-deletion') }}">Supprimer votre compte LoveGames</a>.
             </p>
             <p>
                 Si vous estimez que vos droits ne sont pas respectés, vous pouvez saisir la Commission de
@@ -169,6 +143,4 @@
                 Nous pouvons mettre à jour ces règles. La date de dernière mise à jour figure en haut de cette page.
                 En cas de changement important, nous vous en informerons dans l'application.
             </p>
-        </main>
-    </body>
-</html>
+</x-public-layout>

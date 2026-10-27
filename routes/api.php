@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\GameTemplateController as AdminGameTemplateController;
 use App\Http\Controllers\Api\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Api\Admin\UserSuspensionController;
@@ -57,6 +58,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::prefix('me')->group(function () {
         Route::get('/', [ProfileController::class, 'show']);
         Route::patch('/', [ProfileController::class, 'update']);
+        Route::delete('/', [AccountController::class, 'destroy']);
         Route::post('profile', [ProfileController::class, 'store']);
         Route::post('avatar', [AvatarController::class, 'store']);
         Route::put('push-token', [PushTokenController::class, 'update']);
