@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\LoveGameController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MessageForwardController;
 use App\Http\Controllers\Api\MessageReactionController;
+use App\Http\Controllers\Api\MessageVoteController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushTokenController;
@@ -99,6 +100,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::delete('messages/{message}', [MessageController::class, 'destroy']);
     Route::post('messages/{message}/reactions', [MessageReactionController::class, 'store']);
     Route::post('messages/{message}/forward', [MessageForwardController::class, 'store']);
+    Route::post('messages/{message}/votes', [MessageVoteController::class, 'store']);
 
     Route::apiResource('games', LoveGameController::class)->except('update');
     Route::post('games/{game}/activation', [GameActivationController::class, 'store']);

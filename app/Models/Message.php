@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 #[Fillable([
     'conversation_id',
@@ -22,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'file_path',
     'file_name',
     'file_size',
+    'payload',
 ])]
 class Message extends Model
 {
@@ -49,6 +51,8 @@ class Message extends Model
         return [
             'message_type' => MessageType::class,
             'reactions' => 'array',
+            'payload' => 'array',
+            'votes' => 'array',
             'is_read' => 'boolean',
             'is_deleted' => 'boolean',
             'edited_at' => 'datetime',
@@ -69,7 +73,51 @@ class Message extends Model
             'file_name' => null,
             'file_size' => null,
             'reactions' => null,
+            'payload' => null,
+            'votes' => null,
         ])->save();
+    }
+
+    /**
+     * Ids of the answers a poll or an event offers.
+     *
+     * @return list<string>
+     */
+    public function voteOptions(): array
+    {
+        return match ($this->message_type) {
+            MessageType::Poll => array_column($this->payload['options'] ?? [], 'id'),
+            MessageType::Event => ['going', 'maybe', 'not_going'],
+            default => [],
+        };
+    }
+
+    /**
+     * Replace the user's answers to a poll or an event (none to withdraw).
+     *
+     * The row is locked so two users voting at the same time never
+     * overwrite each other.
+     *
+     * @param  list<string>  $optionIds
+     */
+    public function setVotes(string $userId, array $optionIds): void
+    {
+        DB::transaction(function () use ($userId, $optionIds): void {
+            $locked = static::query()->whereKey($this->getKey())->lockForUpdate()->firstOrFail();
+
+            $votes = [];
+            foreach ($this->voteOptions() as $option) {
+                $users = array_values(array_diff($locked->votes[$option] ?? [], [$userId]));
+                if (in_array($option, $optionIds, true)) {
+                    $users[] = $userId;
+                }
+                if ($users !== []) {
+                    $votes[$option] = $users;
+                }
+            }
+
+            $this->forceFill(['votes' => $votes === [] ? null : $votes])->save();
+        });
     }
 
     /**

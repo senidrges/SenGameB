@@ -17,7 +17,7 @@ class SendMessage
      * Store a message, move the conversation to the top of the list and
      * tell the other participants.
      *
-     * @param  array{message_type: string, content?: string|null, file_path?: string|null, file_name?: string|null, file_size?: int|null, reply_to_id?: string|null}  $attributes
+     * @param  array{message_type: string, content?: string|null, file_path?: string|null, file_name?: string|null, file_size?: int|null, payload?: array<string, mixed>|null, reply_to_id?: string|null}  $attributes
      */
     public function handle(Conversation $conversation, User $sender, array $attributes): Message
     {

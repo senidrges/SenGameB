@@ -108,6 +108,7 @@ class SubmitReport
                 'message_type' => $target->message_type->value,
                 'file_url' => $target->file_url,
                 'file_name' => $target->file_name,
+                'payload' => $target->payload,
                 'sender_username' => $target->sender?->username,
                 'conversation_id' => $target->conversation_id,
                 'sent_at' => $target->created_at?->toIso8601String(),

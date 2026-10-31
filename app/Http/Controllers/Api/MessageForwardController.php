@@ -34,6 +34,7 @@ class MessageForwardController extends Controller
             'file_path' => $message->file_path,
             'file_name' => $message->file_name,
             'file_size' => $message->file_size,
+            'payload' => $message->payload,
         ]);
 
         return MessageResource::make($forwarded)->response()->setStatusCode(201);
