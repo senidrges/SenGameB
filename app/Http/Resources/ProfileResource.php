@@ -33,6 +33,11 @@ class ProfileResource extends JsonResource
             'biometrics_enabled' => $this->biometrics_enabled,
             'first_login_completed' => $this->first_login_completed,
             'is_admin' => $this->is_admin,
+            // Only the owner learns whether a secret code hides their locked conversations
+            'has_chat_lock_code' => $this->when(
+                $request->user()?->is($this->resource) ?? false,
+                fn () => $this->chat_lock_code !== null,
+            ),
             'created_at' => $this->created_at,
             'role' => $this->whenPivotLoaded('game_participants', fn () => $this->pivot->role),
         ];

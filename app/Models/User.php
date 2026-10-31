@@ -33,8 +33,9 @@ use Laravel\Sanctum\HasApiTokens;
     'biometrics_enabled',
     'first_login_completed',
     'push_token',
+    'chat_lock_code',
 ])]
-#[Hidden(['password', 'remember_token', 'push_token'])]
+#[Hidden(['password', 'remember_token', 'push_token', 'chat_lock_code'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -64,6 +65,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'password' => 'hashed',
+            'chat_lock_code' => 'hashed',
             'is_online' => 'boolean',
             'biometrics_enabled' => 'boolean',
             'first_login_completed' => 'boolean',

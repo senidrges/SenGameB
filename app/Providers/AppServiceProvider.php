@@ -45,6 +45,9 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('reports', fn (Request $request) => Limit::perHour(30)->by($request->user()?->id ?: $request->ip()));
 
+        // The search bar checks the secret code as the user types
+        RateLimiter::for('chat-lock-code', fn (Request $request) => Limit::perMinute(20)->by($request->user()?->id ?: $request->ip()));
+
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(240)->by($request->user()?->id ?: $request->ip()));
 
         ResetPassword::createUrlUsing(fn (User $user, string $token): string => route('password.reset', [

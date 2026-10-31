@@ -38,6 +38,10 @@ class ImportFromSupabase extends Command
      */
     private array $usedPhoneNumbers = [];
 
+    private int $copiedFiles = 0;
+
+    private int $failedFiles = 0;
+
     public function handle(): int
     {
         if (config('database.connections.supabase.url') === null) {
@@ -57,9 +61,55 @@ class ImportFromSupabase extends Command
             $this->components->task('Game templates', fn () => $this->importGameTemplates());
         });
 
-        $this->components->info('Import finished. Existing passwords keep working; users only need to log in again.');
+        $isComplete = $this->reportCounts();
+
+        if ($this->failedFiles > 0) {
+            $this->components->warn("{$this->failedFiles} file(s) could not be copied and still point to Supabase (see warnings above).");
+        }
+
+        if (! $isComplete) {
+            $this->components->error('Some rows are missing: check the table above before going live.');
+
+            return self::FAILURE;
+        }
+
+        $this->components->info("Import finished ({$this->copiedFiles} file(s) copied). Existing passwords keep working; users only need to log in again.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Compare the number of rows in Supabase with the imported ones.
+     */
+    private function reportCounts(): bool
+    {
+        $tables = [
+            'users' => [$this->source->table('auth.users')->whereNotNull('email'), 'users'],
+            'conversations' => [$this->source->table('conversations'), 'conversations'],
+            'conversation_participants' => [$this->source->table('conversation_participants'), 'conversation_participants'],
+            'messages' => [$this->source->table('messages'), 'messages'],
+            'love_games' => [$this->source->table('love_games'), 'love_games'],
+            'game_participants' => [$this->source->table('game_participants'), 'game_participants'],
+            'game_items' => [$this->source->table('game_items'), 'game_items'],
+            'game_choices' => [$this->source->table('game_choices'), 'game_choices'],
+            'game_messages' => [$this->source->table('game_messages'), 'game_messages'],
+            'game_templates' => [$this->source->table('game_templates'), 'game_templates'],
+        ];
+
+        $rows = [];
+        $isComplete = true;
+
+        foreach ($tables as $name => [$sourceQuery, $targetTable]) {
+            $sourceCount = $sourceQuery->count();
+            $targetCount = DB::table($targetTable)->count();
+            $isComplete = $isComplete && $targetCount >= $sourceCount;
+
+            $rows[] = [$name, $sourceCount, $targetCount, $targetCount >= $sourceCount ? 'OK' : 'MISSING'];
+        }
+
+        $this->table(['Table', 'Supabase', 'Imported', ''], $rows);
+
+        return $isComplete;
     }
 
     private function importUsers(): void
@@ -326,9 +376,11 @@ class ImportFromSupabase extends Command
         try {
             $response = Http::timeout(60)->retry(2, 1000)->get($url);
             Storage::disk('public')->put($path, $response->body());
+            $this->copiedFiles++;
 
             return $path;
         } catch (Throwable $exception) {
+            $this->failedFiles++;
             $this->components->warn("Could not copy {$url}: {$exception->getMessage()}");
 
             return $url;

@@ -27,5 +27,16 @@ abstract class PushNotification extends Notification implements ShouldQueueAfter
         return $notifiable->push_token === null ? [] : [ExpoPushChannel::class];
     }
 
+    /**
+     * Shared hosting runs no queue worker: by default the push is sent right
+     * after the HTTP response (the "deferred" queue) so it is not delayed.
+     *
+     * @return array<class-string, string>
+     */
+    public function viaConnections(): array
+    {
+        return [ExpoPushChannel::class => config('services.expo.queue_connection')];
+    }
+
     abstract public function toExpo(User $notifiable): ExpoMessage;
 }

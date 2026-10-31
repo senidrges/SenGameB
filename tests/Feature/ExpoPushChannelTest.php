@@ -9,11 +9,20 @@ use App\Notifications\NewChatMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class ExpoPushChannelTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Pushes go through the "deferred" queue: run them right away
+        $this->withoutDefer();
+    }
 
     public function test_chat_messages_are_pushed_through_expo(): void
     {
@@ -40,6 +49,24 @@ class ExpoPushChannelTest extends TestCase
         $recipient->notify(new NewChatMessage($message));
 
         $this->assertNull($recipient->fresh()->push_token);
+    }
+
+    public function test_other_expo_errors_are_logged(): void
+    {
+        Log::spy();
+        Http::fake(['exp.host/*' => Http::response(['data' => [
+            'status' => 'error',
+            'message' => 'Unable to retrieve the FCM server key for the recipient\'s app.',
+            'details' => ['error' => 'InvalidCredentials'],
+        ]])]);
+        [$recipient, $message] = $this->messageFor('ExponentPushToken[device]');
+
+        $recipient->notify(new NewChatMessage($message));
+
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $log, array $context) => $context['error'] === 'InvalidCredentials'
+        );
+        $this->assertSame('ExponentPushToken[device]', $recipient->fresh()->push_token);
     }
 
     public function test_users_without_token_are_skipped(): void

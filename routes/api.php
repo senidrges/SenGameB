@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Auth\RegisteredUserController;
 use App\Http\Controllers\Api\Auth\SessionController;
 use App\Http\Controllers\Api\AvatarController;
 use App\Http\Controllers\Api\BlockController;
+use App\Http\Controllers\Api\ChatLockCodeController;
 use App\Http\Controllers\Api\ContactMatchController;
 use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
@@ -64,6 +65,10 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
         Route::put('push-token', [PushTokenController::class, 'update']);
         Route::delete('push-token', [PushTokenController::class, 'destroy']);
         Route::put('presence', [PresenceController::class, 'update']);
+        Route::put('chat-lock-code', [ChatLockCodeController::class, 'update']);
+        Route::delete('chat-lock-code', [ChatLockCodeController::class, 'destroy']);
+        Route::post('chat-lock-code/verify', [ChatLockCodeController::class, 'verify'])
+            ->middleware('throttle:chat-lock-code');
     });
 
     Route::get('users', [UserController::class, 'index']);

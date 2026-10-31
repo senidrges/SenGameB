@@ -39,6 +39,8 @@ return [
         'push_url' => env('EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
         // Only needed when "Enhanced push security" is enabled on the Expo project.
         'access_token' => env('EXPO_ACCESS_TOKEN'),
+        // "deferred" needs no queue worker; use "database" once one runs.
+        'queue_connection' => env('EXPO_PUSH_QUEUE_CONNECTION', 'deferred'),
     ],
 
 ];

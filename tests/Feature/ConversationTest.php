@@ -69,6 +69,23 @@ class ConversationTest extends TestCase
             ->assertJsonPath('0.unread_count', 2);
     }
 
+    public function test_the_last_message_is_the_most_recent_whatever_its_uuid(): void
+    {
+        Message::factory()->create([
+            'id' => 'ffffffff-ffff-4fff-bfff-ffffffffffff',
+            'conversation_id' => $this->conversation->id,
+            'created_at' => now()->subHour(),
+        ]);
+        $last = Message::factory()->create([
+            'id' => '00000000-0000-4000-8000-000000000000',
+            'conversation_id' => $this->conversation->id,
+        ]);
+
+        $this->getJson('/api/v1/conversations')
+            ->assertOk()
+            ->assertJsonPath('0.last_message.id', $last->id);
+    }
+
     public function test_outsiders_cannot_read_a_conversation(): void
     {
         Sanctum::actingAs(User::factory()->create(), ['access']);

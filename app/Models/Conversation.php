@@ -83,6 +83,7 @@ class Conversation extends Model
      */
     public function latestMessage(): HasOne
     {
-        return $this->hasOne(Message::class)->latestOfMany();
+        // Ids are random UUIDs: the latest message is picked by date
+        return $this->hasOne(Message::class)->latestOfMany(['created_at', 'id']);
     }
 }
