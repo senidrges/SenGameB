@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 /**
  * A conversation seen by the current user, shaped like `ConversationWithDetails`.
@@ -40,11 +41,15 @@ class ConversationResource extends JsonResource
             'can_message' => $this->whenLoaded('participants', fn () => $other !== null && ! $this->isBlockedEitherWay($viewer, $other)),
             'is_archived' => $this->whenLoaded('participants', fn () => $this->viewerPivot($viewer)?->archived_at !== null),
             'is_locked' => $this->whenLoaded('participants', fn () => $this->viewerPivot($viewer)?->locked_at !== null),
+            'is_muted' => $this->whenLoaded('participants', fn () => ($pivot = $this->viewerPivot($viewer)) !== null && Conversation::pivotIsMuted($pivot)),
+            'muted_until' => $this->whenLoaded('participants', fn () => $this->viewerPivot($viewer)?->muted_until === null
+                ? null
+                : Carbon::parse($this->viewerPivot($viewer)->muted_until)),
         ];
     }
 
     /**
-     * Archive and lock are set per participant, on the viewer's own pivot row.
+     * Archive, lock and mute are set per participant, on the viewer's own pivot row.
      */
     private function viewerPivot(User $viewer): ?object
     {

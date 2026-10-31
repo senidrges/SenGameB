@@ -35,7 +35,8 @@ class SendMessage
         Realtime::send(new MessageCreated($message, $participants->modelKeys()));
 
         Notification::send(
-            $participants->reject(fn (User $participant) => $participant->is($sender)),
+            $participants->reject(fn (User $participant) => $participant->is($sender)
+                || Conversation::pivotIsMuted($participant->pivot)),
             new NewChatMessage($message),
         );
 

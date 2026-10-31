@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\GameTemplateController as AdminGameTemplateController;
 use App\Http\Controllers\Api\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Api\Admin\UserSuspensionController;
+use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Api\Auth\PhoneLookupController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationLockController;
 use App\Http\Controllers\Api\ConversationMessageController;
+use App\Http\Controllers\Api\ConversationMuteController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\GameActivationController;
 use App\Http\Controllers\Api\GameChoiceController;
@@ -42,6 +44,9 @@ use Illuminate\Support\Facades\Route;
 /*
 | Every route is prefixed with /api/v1 (see bootstrap/app.php).
 */
+
+// Asked by the app at launch, logged in or not
+Route::get('app-version', [AppVersionController::class, 'show']);
 
 Route::prefix('auth')->middleware('throttle:auth')->group(function () {
     Route::post('register', [RegisteredUserController::class, 'store']);
@@ -87,6 +92,8 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::delete('conversations/{conversation}/archive', [ConversationArchiveController::class, 'destroy']);
     Route::post('conversations/{conversation}/lock', [ConversationLockController::class, 'store']);
     Route::delete('conversations/{conversation}/lock', [ConversationLockController::class, 'destroy']);
+    Route::post('conversations/{conversation}/mute', [ConversationMuteController::class, 'store']);
+    Route::delete('conversations/{conversation}/mute', [ConversationMuteController::class, 'destroy']);
 
     Route::patch('messages/{message}', [MessageController::class, 'update']);
     Route::delete('messages/{message}', [MessageController::class, 'destroy']);

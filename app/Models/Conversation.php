@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 #[Fillable(['direct_key'])]
 class Conversation extends Model
@@ -52,6 +53,16 @@ class Conversation extends Model
         return $this->participants->first(fn (User $participant) => ! $participant->is($viewer));
     }
 
+    /**
+     * Whether the participant behind this pivot row muted the conversation:
+     * for good when `muted_until` is null, else until that date.
+     */
+    public static function pivotIsMuted(object $pivot): bool
+    {
+        return $pivot->muted_at !== null
+            && ($pivot->muted_until === null || Carbon::parse($pivot->muted_until)->isFuture());
+    }
+
     public function hasParticipant(User $user): bool
     {
         if ($this->relationLoaded('participants')) {
@@ -67,7 +78,7 @@ class Conversation extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'conversation_participants')
-            ->withPivot(['joined_at', 'archived_at', 'locked_at']);
+            ->withPivot(['joined_at', 'archived_at', 'locked_at', 'muted_at', 'muted_until']);
     }
 
     /**

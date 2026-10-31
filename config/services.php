@@ -43,4 +43,13 @@ return [
         'queue_connection' => env('EXPO_PUSH_QUEUE_CONNECTION', 'deferred'),
     ],
 
+    // Latest Android build on the Play Store, announced to older apps. Native
+    // changes cannot reach them over the air: they must update from the store.
+    'play_store' => [
+        'url' => env('PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.sedrge.LoveGames'),
+        'latest_version' => env('ANDROID_LATEST_VERSION'),
+        // Older apps are blocked until they update (e.g. a breaking API change)
+        'min_version' => env('ANDROID_MIN_VERSION'),
+    ],
+
 ];
