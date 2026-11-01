@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -16,19 +17,27 @@ use Illuminate\Validation\Rule;
 class ConversationController extends Controller
 {
     /**
-     * Conversations of the user, most recent activity first.
+     * Conversations of the user, most recent activity first. A conversation
+     * the user deleted comes back only with a message sent after that.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $user = $request->user();
 
         $conversations = $user->conversations()
-            ->with([...Conversation::participantsWithBlockStateFor($user), 'latestMessage'])
+            ->with(Conversation::participantsWithBlockStateFor($user))
             ->withCount(['messages as unread_count' => fn ($messages) => $messages
+                ->visibleTo($user)
                 ->where('is_read', false)
                 ->where('sender_id', '!=', $user->id)])
             ->orderByDesc('conversations.updated_at')
-            ->get()
+            ->get();
+
+        Conversation::loadLatestMessageVisibleTo($conversations, $user);
+
+        $conversations = $conversations
+            ->filter(fn (Conversation $conversation) => $conversation->pivot->deleted_at === null
+                || $conversation->latestMessage !== null)
             ->filter(fn (Conversation $conversation) => $conversation->participants
                 ->contains(fn (User $participant) => ! $participant->is($user) && $participant->hasProfile()))
             ->values();
@@ -61,7 +70,10 @@ class ConversationController extends Controller
             return $conversation;
         });
 
-        return ConversationResource::make($conversation->load([...Conversation::participantsWithBlockStateFor($user), 'latestMessage']))
+        $conversation->load(Conversation::participantsWithBlockStateFor($user));
+        Conversation::loadLatestMessageVisibleTo($conversation->newCollection([$conversation]), $user);
+
+        return ConversationResource::make($conversation)
             ->response()
             ->setStatusCode($conversation->wasRecentlyCreated ? 201 : 200);
     }
@@ -73,9 +85,24 @@ class ConversationController extends Controller
     {
         Gate::authorize('view', $conversation);
 
-        return ConversationResource::make($conversation->load([
-            ...Conversation::participantsWithBlockStateFor($request->user()),
-            'latestMessage',
-        ]));
+        $user = $request->user();
+        $conversation->load(Conversation::participantsWithBlockStateFor($user));
+        Conversation::loadLatestMessageVisibleTo($conversation->newCollection([$conversation]), $user);
+
+        return ConversationResource::make($conversation);
+    }
+
+    /**
+     * Delete the conversation for the user only. Nothing is erased: its
+     * messages stay in the database (and for the other participant), they
+     * are just hidden from the user. It shows again with the next message.
+     */
+    public function destroy(Request $request, Conversation $conversation): Response
+    {
+        Gate::authorize('view', $conversation);
+
+        $conversation->participants()->updateExistingPivot($request->user()->id, ['deleted_at' => now()]);
+
+        return response()->noContent();
     }
 }

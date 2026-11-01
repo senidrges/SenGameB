@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Gate;
 class MessageForwardController extends Controller
 {
     /**
-     * Send a copy of a message to another conversation of the user.
+     * Send a copy of a message to another conversation of the user. The copy
+     * starts fresh (no reply, reactions or votes) and remembers its origin.
      */
     public function store(Request $request, Message $message, SendMessage $sendMessage): JsonResponse
     {
@@ -35,6 +36,7 @@ class MessageForwardController extends Controller
             'file_name' => $message->file_name,
             'file_size' => $message->file_size,
             'payload' => $message->payload,
+            'forwarded_from_id' => $message->id,
         ]);
 
         return MessageResource::make($forwarded)->response()->setStatusCode(201);

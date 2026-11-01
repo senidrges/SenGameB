@@ -18,6 +18,7 @@ class MessageReactionController extends Controller
     public function store(Request $request, Message $message): MessageResource
     {
         Gate::authorize('sendMessage', $message->conversation);
+        abort_if($message->is_deleted, 422, 'Ce message a été supprimé.');
 
         $validated = $request->validate([
             'emoji' => ['required', 'string', 'max:16'],

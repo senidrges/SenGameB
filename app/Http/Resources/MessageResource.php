@@ -14,7 +14,8 @@ class MessageResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
-     * The content of a message deleted for everyone is never sent back.
+     * The content of a message deleted for everyone is never sent back,
+     * even though it is kept in the database.
      *
      * @return array<string, mixed>
      */
@@ -30,12 +31,13 @@ class MessageResource extends JsonResource
             'file_name' => $this->is_deleted ? null : $this->file_name,
             'file_size' => $this->is_deleted ? null : $this->file_size,
             'payload' => $this->is_deleted ? null : $this->payload,
-            'votes' => $this->votes,
+            'votes' => $this->is_deleted ? null : $this->votes,
             'is_read' => $this->is_read,
             'reply_to_id' => $this->reply_to_id,
-            'reactions' => $this->reactions,
+            'reactions' => $this->is_deleted ? null : $this->reactions,
             'edited_at' => $this->edited_at,
             'is_deleted' => $this->is_deleted,
+            'is_forwarded' => $this->forwarded_from_id !== null,
             'created_at' => $this->created_at,
             'sender' => ProfileResource::make($this->whenLoaded('sender')),
             'reply_to' => $this->whenLoaded('replyTo', fn () => $this->replyTo === null ? null : [

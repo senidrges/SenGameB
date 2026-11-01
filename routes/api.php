@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\GameTemplateController;
 use App\Http\Controllers\Api\LoveGameController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MessageForwardController;
+use App\Http\Controllers\Api\MessageHideController;
 use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoteController;
 use App\Http\Controllers\Api\PresenceController;
@@ -85,6 +86,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::get('conversations', [ConversationController::class, 'index']);
     Route::post('conversations', [ConversationController::class, 'store']);
     Route::get('conversations/{conversation}', [ConversationController::class, 'show']);
+    Route::delete('conversations/{conversation}', [ConversationController::class, 'destroy']);
     Route::get('conversations/{conversation}/messages', [ConversationMessageController::class, 'index']);
     Route::post('conversations/{conversation}/messages', [ConversationMessageController::class, 'store']);
     Route::post('conversations/{conversation}/read', [ConversationReadController::class, 'store']);
@@ -100,6 +102,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::delete('messages/{message}', [MessageController::class, 'destroy']);
     Route::post('messages/{message}/reactions', [MessageReactionController::class, 'store']);
     Route::post('messages/{message}/forward', [MessageForwardController::class, 'store']);
+    Route::post('messages/{message}/hide', [MessageHideController::class, 'store']);
     Route::post('messages/{message}/votes', [MessageVoteController::class, 'store']);
 
     Route::apiResource('games', LoveGameController::class)->except('update');

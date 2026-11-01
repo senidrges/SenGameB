@@ -7,11 +7,15 @@ use App\Models\Concerns\HasReactions;
 use App\Support\PublicFile;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 #[Fillable([
@@ -24,6 +28,7 @@ use Illuminate\Support\Facades\DB;
     'file_name',
     'file_size',
     'payload',
+    'forwarded_from_id',
 ])]
 class Message extends Model
 {
@@ -56,26 +61,41 @@ class Message extends Model
             'is_read' => 'boolean',
             'is_deleted' => 'boolean',
             'edited_at' => 'datetime',
+            'deleted_at' => 'datetime',
             'file_size' => 'integer',
         ];
     }
 
     /**
-     * Delete the message for everyone: it stays in the thread as "deleted"
-     * but its content and file are gone.
+     * Delete the message for everyone: it stays in the thread as "deleted".
+     * Nothing is erased: the content and file stay in the database, only
+     * MessageResource stops sending them.
      */
     public function markDeletedForEveryone(): void
     {
-        $this->forceFill([
-            'is_deleted' => true,
-            'content' => null,
-            'file_path' => null,
-            'file_name' => null,
-            'file_size' => null,
-            'reactions' => null,
-            'payload' => null,
-            'votes' => null,
-        ])->save();
+        if ($this->is_deleted) {
+            return;
+        }
+
+        $this->forceFill(['is_deleted' => true, 'deleted_at' => now()])->save();
+    }
+
+    /**
+     * Messages the user can see: not deleted "for me" and not older than
+     * the moment they deleted the conversation.
+     *
+     * @param  Builder<Message>  $query
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        $query
+            ->whereDoesntHave('hiddenBy', fn (Builder $users) => $users->whereKey($user->id))
+            ->whereNotExists(fn (QueryBuilder $participants) => $participants
+                ->from('conversation_participants')
+                ->whereColumn('conversation_participants.conversation_id', 'messages.conversation_id')
+                ->where('conversation_participants.user_id', $user->id)
+                ->whereColumn('conversation_participants.deleted_at', '>=', 'messages.created_at'));
     }
 
     /**
@@ -150,5 +170,15 @@ class Message extends Model
     public function replyTo(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'reply_to_id');
+    }
+
+    /**
+     * Users who deleted this message "for me".
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function hiddenBy(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'hidden_messages')->withPivot('hidden_at');
     }
 }

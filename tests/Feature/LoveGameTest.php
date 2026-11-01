@@ -170,6 +170,61 @@ class LoveGameTest extends TestCase
         $this->assertSame(1, $game->items()->count());
     }
 
+    public function test_activating_a_completed_game_starts_a_new_round(): void
+    {
+        $game = LoveGame::factory()->active()->withPlayers([$this->player])->create(['organizer_id' => $this->organizer->id, 'status' => GameStatus::Completed]);
+        GameChoice::factory()->create(['game_id' => $game->id, 'user_id' => $this->player->id]);
+        Sanctum::actingAs($this->organizer, ['access']);
+
+        $this->postJson("/api/v1/games/{$game->id}/activation")
+            ->assertOk()
+            ->assertJsonPath('status', 'active')
+            ->assertJsonCount(0, 'choices');
+
+        Notification::assertSentTo($this->player, GameActivated::class);
+
+        Sanctum::actingAs($this->player, ['access']);
+        $this->postJson("/api/v1/games/{$game->id}/choices", ['choice_number' => 1])
+            ->assertOk()
+            ->assertJsonPath('status', 'completed');
+    }
+
+    public function test_activating_an_active_game_keeps_the_choices_made(): void
+    {
+        $secondPlayer = User::factory()->create();
+        $game = LoveGame::factory()->active()->withPlayers([$this->player, $secondPlayer])->create(['organizer_id' => $this->organizer->id]);
+        GameChoice::factory()->create(['game_id' => $game->id, 'user_id' => $this->player->id]);
+        Sanctum::actingAs($this->organizer, ['access']);
+
+        $this->postJson("/api/v1/games/{$game->id}/activation")->assertOk()->assertJsonCount(1, 'choices');
+    }
+
+    public function test_replacing_the_items_clears_the_choices(): void
+    {
+        $game = LoveGame::factory()->active()->withPlayers([$this->player])->create(['organizer_id' => $this->organizer->id, 'status' => GameStatus::Completed]);
+        GameChoice::factory()->create(['game_id' => $game->id, 'user_id' => $this->player->id]);
+        Sanctum::actingAs($this->organizer, ['access']);
+
+        $this->putJson("/api/v1/games/{$game->id}/items", ['items' => [['number' => 1, 'content' => 'Nouveau']]])->assertOk();
+
+        $this->assertSame(0, $game->choices()->count());
+        $this->assertSame(GameStatus::Waiting, $game->fresh()->status);
+    }
+
+    public function test_games_stuck_active_after_every_player_chose_are_completed_again(): void
+    {
+        $secondPlayer = User::factory()->create();
+        $stuck = LoveGame::factory()->active()->withPlayers([$this->player])->create(['organizer_id' => $this->organizer->id]);
+        GameChoice::factory()->create(['game_id' => $stuck->id, 'user_id' => $this->player->id]);
+        $inProgress = LoveGame::factory()->active()->withPlayers([$this->player, $secondPlayer])->create(['organizer_id' => $this->organizer->id]);
+        GameChoice::factory()->create(['game_id' => $inProgress->id, 'user_id' => $this->player->id]);
+
+        (require database_path('migrations/2026_11_01_120000_complete_stuck_love_games.php'))->up();
+
+        $this->assertSame(GameStatus::Completed, $stuck->fresh()->status);
+        $this->assertSame(GameStatus::Active, $inProgress->fresh()->status);
+    }
+
     public function test_game_chat_messages_notify_the_other_participants(): void
     {
         $game = $this->createGame();

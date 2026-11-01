@@ -1,6 +1,6 @@
 <x-public-layout title="Règles de confidentialité">
             <h1>Règles de confidentialité de LoveGames</h1>
-            <p class="updated">Dernière mise à jour : 27 octobre 2026</p>
+            <p class="updated">Dernière mise à jour : 1er novembre 2026</p>
 
             <p>
                 LoveGames est une application mobile de messagerie et de jeux à deux, éditée par
@@ -29,7 +29,7 @@
                             <td>Afficher votre profil aux autres utilisateurs</td>
                         </tr>
                         <tr>
-                            <td>Messages, photos, messages vocaux, fichiers, réactions, contenus et choix des jeux</td>
+                            <td>Messages, photos, messages vocaux, fichiers, positions partagées, fiches de contact partagées, sondages et votes, événements, réactions, contenus et choix des jeux</td>
                             <td>Les transmettre à votre interlocuteur et les conserver dans vos conversations et vos jeux</td>
                         </tr>
                         <tr>
@@ -41,7 +41,7 @@
                             <td>Vous envoyer des notifications (nouveaux messages, jeux)</td>
                         </tr>
                         <tr>
-                            <td>Préférences : conversations archivées ou verrouillées, comptes bloqués</td>
+                            <td>Préférences : conversations archivées, verrouillées ou mises en silence, code secret des discussions verrouillées (enregistré sous forme chiffrée irréversible), comptes bloqués</td>
                             <td>Faire fonctionner ces options pour vous seul ; l'autre personne n'en est pas informée</td>
                         </tr>
                         <tr>
@@ -63,9 +63,21 @@
                     sont envoyés à notre serveur uniquement pour vous indiquer lesquels de vos contacts utilisent
                     LoveGames. Ils sont comparés aux comptes existants puis <strong>ne sont pas conservés</strong>.
                     L'application peut aussi enregistrer un nouveau contact dans votre répertoire, à votre demande.
+                    Quand vous <strong>partagez un contact</strong> dans une conversation, seuls le nom et les numéros
+                    du contact que vous choisissez sont envoyés à votre interlocuteur et conservés dans la conversation.
+                </li>
+                <li>
+                    <strong>Position (localisation précise)</strong> : lue une seule fois, uniquement quand vous
+                    choisissez de partager votre position dans une conversation. Elle est envoyée à votre interlocuteur
+                    et conservée dans la conversation. L'adresse affichée est obtenue par le service de votre téléphone
+                    (Google sur Android, Apple sur iPhone). LoveGames ne suit jamais votre position en arrière-plan.
                 </li>
                 <li>
                     <strong>Microphone</strong> : utilisé seulement quand vous enregistrez un message vocal.
+                </li>
+                <li>
+                    <strong>Appareil photo</strong> : utilisé seulement quand vous prenez une photo à envoyer
+                    ou pour votre photo de profil.
                 </li>
                 <li>
                     <strong>Photos et fichiers</strong> : seuls les éléments que vous choisissez d'envoyer ou de
@@ -92,6 +104,8 @@
                 <li><strong>o2switch</strong> (France) : hébergement du serveur et de la base de données.</li>
                 <li><strong>Pusher</strong> (serveurs en Europe) : acheminement des messages en temps réel ; les données ne font qu'y transiter.</li>
                 <li><strong>Expo et Google (Firebase Cloud Messaging), Apple</strong> : acheminement des notifications vers votre téléphone.</li>
+                <li><strong>Cloudflare (cdnjs)</strong> : fournit l'outil d'affichage des PDF ; vos documents restent sur votre téléphone et ne lui sont pas envoyés.</li>
+                <li><strong>Expo</strong> : téléchargement des mises à jour de l'application ; Expo reçoit seulement des informations techniques (adresse IP, modèle et version de l'application).</li>
                 <li><strong>Les autorités</strong>, uniquement si la loi nous y oblige.</li>
             </ul>
             <p>

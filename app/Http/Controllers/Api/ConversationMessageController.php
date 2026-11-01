@@ -16,6 +16,8 @@ class ConversationMessageController extends Controller
 {
     /**
      * A page of messages, oldest first. Pass `before` to load older ones.
+     * Messages the user deleted "for me", or that predate their deletion of
+     * the conversation, are left out.
      */
     public function index(Request $request, Conversation $conversation): AnonymousResourceCollection
     {
@@ -27,6 +29,7 @@ class ConversationMessageController extends Controller
         ]);
 
         $messages = $conversation->messages()
+            ->visibleTo($request->user())
             ->with(['sender', 'replyTo.sender'])
             ->when($request->date('before'), fn ($query, $before) => $query->where('created_at', '<', $before))
             ->latest()

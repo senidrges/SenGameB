@@ -6,6 +6,7 @@ use Closure;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -63,6 +64,35 @@ class Conversation extends Model
             && ($pivot->muted_until === null || Carbon::parse($pivot->muted_until)->isFuture());
     }
 
+    /**
+     * Set each conversation's `latestMessage` to the last message the viewer
+     * can see (see Message::visibleTo()), in two queries for the whole list.
+     *
+     * @param  EloquentCollection<int, Conversation>  $conversations
+     */
+    public static function loadLatestMessageVisibleTo(EloquentCollection $conversations, User $viewer): void
+    {
+        $latestIds = static::query()
+            ->whereKey($conversations->modelKeys())
+            ->select('id')
+            ->addSelect(['latest_message_id' => Message::query()
+                ->select('messages.id')
+                ->whereColumn('messages.conversation_id', 'conversations.id')
+                ->visibleTo($viewer)
+                // Ids are random UUIDs: the latest message is picked by date
+                ->orderByDesc('messages.created_at')
+                ->orderByDesc('messages.id')
+                ->limit(1)])
+            ->pluck('latest_message_id', 'id');
+
+        $messages = Message::query()->findMany($latestIds->filter()->values())->keyBy('id');
+
+        $conversations->each(fn (Conversation $conversation) => $conversation->setRelation(
+            'latestMessage',
+            $messages->get($latestIds->get($conversation->id)),
+        ));
+    }
+
     public function hasParticipant(User $user): bool
     {
         if ($this->relationLoaded('participants')) {
@@ -78,7 +108,7 @@ class Conversation extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'conversation_participants')
-            ->withPivot(['joined_at', 'archived_at', 'locked_at', 'muted_at', 'muted_until']);
+            ->withPivot(['joined_at', 'archived_at', 'locked_at', 'muted_at', 'muted_until', 'deleted_at']);
     }
 
     /**

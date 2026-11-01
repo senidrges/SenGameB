@@ -189,7 +189,95 @@ class ConversationTest extends TestCase
             ->assertJsonPath('is_deleted', true)
             ->assertJsonPath('content', null);
 
-        $this->assertNull($message->fresh()->content);
+        // Soft delete: the content stays in the database
+        $deleted = $message->fresh();
+        $this->assertSame('Corrigé', $deleted->content);
+        $this->assertNotNull($deleted->deleted_at);
+
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")
+            ->assertJsonPath('0.is_deleted', true)
+            ->assertJsonPath('0.content', null);
+    }
+
+    public function test_a_message_deleted_for_everyone_shows_as_deleted_in_the_list(): void
+    {
+        $message = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->alice->id]);
+
+        $this->deleteJson("/api/v1/messages/{$message->id}")->assertOk();
+
+        $this->getJson('/api/v1/conversations')
+            ->assertJsonPath('0.last_message.id', $message->id)
+            ->assertJsonPath('0.last_message.is_deleted', true)
+            ->assertJsonPath('0.last_message.content', null);
+    }
+
+    public function test_a_message_deleted_for_me_is_hidden_from_me_only(): void
+    {
+        $older = Message::factory()->create(['conversation_id' => $this->conversation->id, 'created_at' => now()->subMinute()]);
+        $message = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->bob->id]);
+
+        $this->postJson("/api/v1/messages/{$message->id}/hide")->assertNoContent();
+        $this->postJson("/api/v1/messages/{$message->id}/hide")->assertNoContent();
+
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $older->id);
+        $this->getJson('/api/v1/conversations')->assertJsonPath('0.last_message.id', $older->id);
+        $this->assertDatabaseHas('messages', ['id' => $message->id]);
+
+        Sanctum::actingAs($this->bob, ['access']);
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")->assertJsonCount(2);
+    }
+
+    public function test_outsiders_cannot_hide_a_message(): void
+    {
+        $message = Message::factory()->create(['conversation_id' => $this->conversation->id]);
+        Sanctum::actingAs(User::factory()->create(), ['access']);
+
+        $this->postJson("/api/v1/messages/{$message->id}/hide")->assertForbidden();
+    }
+
+    public function test_deleting_a_conversation_hides_it_until_a_new_message(): void
+    {
+        $old = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->bob->id]);
+
+        $this->travel(1)->minute();
+        $this->deleteJson("/api/v1/conversations/{$this->conversation->id}")->assertNoContent();
+
+        $this->getJson('/api/v1/conversations')->assertJsonCount(0);
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")->assertJsonCount(0);
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}")->assertJsonPath('last_message', null);
+
+        // Nothing is erased, and the other participant keeps everything
+        $this->assertDatabaseHas('messages', ['id' => $old->id]);
+        Sanctum::actingAs($this->bob, ['access']);
+        $this->getJson('/api/v1/conversations')->assertJsonCount(1)->assertJsonPath('0.last_message.id', $old->id);
+
+        $this->travel(1)->minute();
+        $new = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->bob->id]);
+
+        Sanctum::actingAs($this->alice, ['access']);
+        $this->getJson('/api/v1/conversations')
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.last_message.id', $new->id)
+            ->assertJsonPath('0.unread_count', 1);
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $new->id);
+    }
+
+    public function test_outsiders_cannot_delete_a_conversation(): void
+    {
+        Sanctum::actingAs(User::factory()->create(), ['access']);
+
+        $this->deleteJson("/api/v1/conversations/{$this->conversation->id}")->assertForbidden();
+    }
+
+    public function test_a_deleted_message_cannot_get_reactions(): void
+    {
+        $message = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->bob->id, 'is_deleted' => true]);
+
+        $this->postJson("/api/v1/messages/{$message->id}/reactions", ['emoji' => '❤️'])->assertStatus(422);
     }
 
     public function test_reactions_are_toggled(): void
@@ -225,7 +313,21 @@ class ConversationTest extends TestCase
         $this->postJson("/api/v1/messages/{$message->id}/forward", ['conversation_id' => $target->id])
             ->assertCreated()
             ->assertJsonPath('conversation_id', $target->id)
-            ->assertJsonPath('content', 'À transférer');
+            ->assertJsonPath('sender_id', $this->alice->id)
+            ->assertJsonPath('content', 'À transférer')
+            ->assertJsonPath('is_forwarded', true);
+
+        $this->assertDatabaseHas('messages', ['conversation_id' => $target->id, 'forwarded_from_id' => $message->id]);
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")->assertJsonPath('0.is_forwarded', false);
+    }
+
+    public function test_a_deleted_message_cannot_be_forwarded(): void
+    {
+        $carol = User::factory()->create();
+        $target = Conversation::factory()->between($this->alice, $carol)->create();
+        $message = Message::factory()->create(['conversation_id' => $this->conversation->id, 'is_deleted' => true]);
+
+        $this->postJson("/api/v1/messages/{$message->id}/forward", ['conversation_id' => $target->id])->assertStatus(422);
     }
 
     public function test_forwarding_to_a_conversation_of_someone_else_is_refused(): void

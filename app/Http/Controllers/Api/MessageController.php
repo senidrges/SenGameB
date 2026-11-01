@@ -34,7 +34,8 @@ class MessageController extends Controller
     }
 
     /**
-     * Delete a message for everyone. It stays in the thread as "deleted".
+     * Delete a message for everyone. It stays in the thread as "deleted" and
+     * its content is kept in the database (soft delete).
      */
     public function destroy(Message $message): MessageResource
     {
@@ -42,7 +43,8 @@ class MessageController extends Controller
 
         $message->markDeletedForEveryone();
 
-        Realtime::send(new MessageUpdated($message));
+        // The conversation lists show the last message: they refresh too
+        Realtime::send(new MessageUpdated($message, $message->conversation->participants()->pluck('users.id')->all()));
 
         return MessageResource::make($message);
     }
