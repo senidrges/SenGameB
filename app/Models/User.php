@@ -153,6 +153,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Every profile photo the user has set, the current one included.
+     *
+     * @return HasMany<ProfilePhoto, $this>
+     */
+    public function profilePhotos(): HasMany
+    {
+        return $this->hasMany(ProfilePhoto::class);
+    }
+
+    /**
      * @return Attribute<string|null, never>
      */
     protected function avatarUrl(): Attribute

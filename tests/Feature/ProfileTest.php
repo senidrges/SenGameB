@@ -58,7 +58,7 @@ class ProfileTest extends TestCase
             ->assertJsonPath('status', 'En vacances');
     }
 
-    public function test_avatar_upload_replaces_the_previous_file(): void
+    public function test_avatar_upload_keeps_the_previous_photo_in_the_history(): void
     {
         Storage::fake('public');
         $user = User::factory()->create(['avatar_path' => 'avatars/old.jpg']);
@@ -69,8 +69,9 @@ class ProfileTest extends TestCase
 
         $path = $user->fresh()->avatar_path;
         Storage::disk('public')->assertExists($path);
-        Storage::disk('public')->assertMissing('avatars/old.jpg');
+        Storage::disk('public')->assertExists('avatars/old.jpg');
         $response->assertJsonPath('avatar_url', Storage::disk('public')->url($path));
+        $this->assertSame([$path], $user->profilePhotos()->pluck('path')->all());
     }
 
     public function test_a_push_token_belongs_to_a_single_account(): void

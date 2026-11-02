@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoteController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ProfilePhotoController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\UserController;
@@ -69,6 +70,8 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
         Route::delete('/', [AccountController::class, 'destroy']);
         Route::post('profile', [ProfileController::class, 'store']);
         Route::post('avatar', [AvatarController::class, 'store']);
+        Route::delete('avatar', [AvatarController::class, 'destroy']);
+        Route::delete('profile-photos/{profilePhoto}', [ProfilePhotoController::class, 'destroy']);
         Route::put('push-token', [PushTokenController::class, 'update']);
         Route::delete('push-token', [PushTokenController::class, 'destroy']);
         Route::put('presence', [PresenceController::class, 'update']);
@@ -80,6 +83,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
 
     Route::get('users', [UserController::class, 'index']);
     Route::get('users/{user}', [UserController::class, 'show']);
+    Route::get('users/{user}/profile-photos', [ProfilePhotoController::class, 'index']);
     Route::get('username-availability', [UsernameAvailabilityController::class, 'show']);
     Route::post('contacts/match', [ContactMatchController::class, 'store']);
 
