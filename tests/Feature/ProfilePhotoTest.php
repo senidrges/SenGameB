@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\AvatarThumbnail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -86,6 +87,7 @@ class ProfilePhotoTest extends TestCase
         $this->deleteJson("/api/v1/me/profile-photos/{$oldPhoto->id}")->assertNoContent();
 
         Storage::disk('public')->assertMissing($old);
+        Storage::disk('public')->assertMissing(AvatarThumbnail::path($old));
         $this->assertSame($current, $this->alice->fresh()->avatar_path);
 
         $this->deleteJson("/api/v1/me/profile-photos/{$currentPhoto->id}")->assertNoContent();

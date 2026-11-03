@@ -10,7 +10,8 @@ use Illuminate\Http\Response;
 class PushTokenController extends Controller
 {
     /**
-     * Register the Expo push token of the user's device.
+     * Register the Expo push token of the user's device, and on Android its
+     * Firebase token (see ExpoPushChannel).
      *
      * A device token belongs to a single account: it is removed from any
      * other account that used the same phone before.
@@ -19,6 +20,7 @@ class PushTokenController extends Controller
     {
         $validated = $request->validate([
             'token' => ['required', 'string', 'max:255'],
+            'fcm_token' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = $request->user();
@@ -28,14 +30,21 @@ class PushTokenController extends Controller
             ->whereKeyNot($user->id)
             ->update(['push_token' => null]);
 
-        $user->update(['push_token' => $validated['token']]);
+        if (isset($validated['fcm_token'])) {
+            User::query()
+                ->where('fcm_token', $validated['fcm_token'])
+                ->whereKeyNot($user->id)
+                ->update(['fcm_token' => null]);
+        }
+
+        $user->update(['push_token' => $validated['token'], 'fcm_token' => $validated['fcm_token'] ?? null]);
 
         return response()->noContent();
     }
 
     public function destroy(Request $request): Response
     {
-        $request->user()->update(['push_token' => null]);
+        $request->user()->update(['push_token' => null, 'fcm_token' => null]);
 
         return response()->noContent();
     }

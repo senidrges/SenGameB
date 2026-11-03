@@ -43,6 +43,7 @@ class Message extends Model
     protected $attributes = [
         'message_type' => 'text',
         'is_read' => false,
+        'is_delivered' => false,
         'is_deleted' => false,
     ];
 
@@ -59,6 +60,7 @@ class Message extends Model
             'payload' => 'array',
             'votes' => 'array',
             'is_read' => 'boolean',
+            'is_delivered' => 'boolean',
             'is_deleted' => 'boolean',
             'edited_at' => 'datetime',
             'deleted_at' => 'datetime',

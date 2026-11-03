@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Events\ProfileUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProfileResource;
+use App\Support\AvatarThumbnail;
 use App\Support\Realtime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class AvatarController extends Controller
 
         $user = $request->user();
         $path = $request->file('avatar')->store("avatars/{$user->id}", 'public');
+        AvatarThumbnail::create($path);
 
         DB::transaction(function () use ($user, $path): void {
             $user->update(['avatar_path' => $path]);

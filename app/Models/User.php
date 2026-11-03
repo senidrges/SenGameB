@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\AvatarThumbnail;
 use App\Support\PublicFile;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -33,9 +34,10 @@ use Laravel\Sanctum\HasApiTokens;
     'biometrics_enabled',
     'first_login_completed',
     'push_token',
+    'fcm_token',
     'chat_lock_code',
 ])]
-#[Hidden(['password', 'remember_token', 'push_token', 'chat_lock_code'])]
+#[Hidden(['password', 'remember_token', 'push_token', 'fcm_token', 'chat_lock_code'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -168,6 +170,14 @@ class User extends Authenticatable
     protected function avatarUrl(): Attribute
     {
         return Attribute::get(fn (): ?string => PublicFile::url($this->avatar_path));
+    }
+
+    /**
+     * @return Attribute<string|null, never>
+     */
+    protected function avatarThumbUrl(): Attribute
+    {
+        return Attribute::get(fn (): ?string => AvatarThumbnail::url($this->avatar_path));
     }
 
     /**

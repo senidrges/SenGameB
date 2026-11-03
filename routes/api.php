@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\Auth\RegisteredUserController;
 use App\Http\Controllers\Api\Auth\SessionController;
 use App\Http\Controllers\Api\AvatarController;
 use App\Http\Controllers\Api\BlockController;
+use App\Http\Controllers\Api\CallController;
+use App\Http\Controllers\Api\CallSignalController;
 use App\Http\Controllers\Api\ChatLockCodeController;
 use App\Http\Controllers\Api\ContactMatchController;
 use App\Http\Controllers\Api\ConversationArchiveController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Api\ConversationLockController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\ConversationMuteController;
 use App\Http\Controllers\Api\ConversationReadController;
+use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\GameActivationController;
 use App\Http\Controllers\Api\GameChoiceController;
 use App\Http\Controllers\Api\GameItemController;
@@ -28,8 +31,10 @@ use App\Http\Controllers\Api\GameMessageController;
 use App\Http\Controllers\Api\GameMessageReactionController;
 use App\Http\Controllers\Api\GameResetController;
 use App\Http\Controllers\Api\GameTemplateController;
+use App\Http\Controllers\Api\LiveKitWebhookController;
 use App\Http\Controllers\Api\LoveGameController;
 use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\MessageDeliveryController;
 use App\Http\Controllers\Api\MessageForwardController;
 use App\Http\Controllers\Api\MessageHideController;
 use App\Http\Controllers\Api\MessageReactionController;
@@ -50,6 +55,9 @@ use Illuminate\Support\Facades\Route;
 
 // Asked by the app at launch, logged in or not
 Route::get('app-version', [AppVersionController::class, 'show']);
+
+// Signed by LiveKit Cloud (see LiveKitWebhookController)
+Route::post('webhooks/livekit', LiveKitWebhookController::class);
 
 Route::prefix('auth')->middleware('throttle:auth')->group(function () {
     Route::post('register', [RegisteredUserController::class, 'store']);
@@ -75,6 +83,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
         Route::put('push-token', [PushTokenController::class, 'update']);
         Route::delete('push-token', [PushTokenController::class, 'destroy']);
         Route::put('presence', [PresenceController::class, 'update']);
+        Route::post('deliveries', [MessageDeliveryController::class, 'store']);
         Route::put('chat-lock-code', [ChatLockCodeController::class, 'update']);
         Route::delete('chat-lock-code', [ChatLockCodeController::class, 'destroy']);
         Route::post('chat-lock-code/verify', [ChatLockCodeController::class, 'verify'])
@@ -94,6 +103,8 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::get('conversations/{conversation}/messages', [ConversationMessageController::class, 'index']);
     Route::post('conversations/{conversation}/messages', [ConversationMessageController::class, 'store']);
     Route::post('conversations/{conversation}/read', [ConversationReadController::class, 'store']);
+    Route::post('conversations/{conversation}/typing', [ConversationTypingController::class, 'store'])
+        ->middleware('throttle:60,1');
     Route::post('conversations/{conversation}/attachments', [AttachmentController::class, 'store']);
     Route::post('conversations/{conversation}/archive', [ConversationArchiveController::class, 'store']);
     Route::delete('conversations/{conversation}/archive', [ConversationArchiveController::class, 'destroy']);
@@ -101,6 +112,14 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::delete('conversations/{conversation}/lock', [ConversationLockController::class, 'destroy']);
     Route::post('conversations/{conversation}/mute', [ConversationMuteController::class, 'store']);
     Route::delete('conversations/{conversation}/mute', [ConversationMuteController::class, 'destroy']);
+
+    Route::post('conversations/{conversation}/calls', [CallController::class, 'store']);
+    Route::get('calls/{call}', [CallController::class, 'show']);
+    Route::post('calls/{call}/accept', [CallController::class, 'accept']);
+    Route::post('calls/{call}/decline', [CallController::class, 'decline']);
+    Route::post('calls/{call}/end', [CallController::class, 'end']);
+    Route::get('calls/{call}/connection', [CallController::class, 'connection']);
+    Route::post('calls/{call}/signals', [CallSignalController::class, 'store']);
 
     Route::patch('messages/{message}', [MessageController::class, 'update']);
     Route::delete('messages/{message}', [MessageController::class, 'destroy']);

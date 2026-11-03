@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\AvatarThumbnail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -72,6 +73,46 @@ class ProfileTest extends TestCase
         Storage::disk('public')->assertExists('avatars/old.jpg');
         $response->assertJsonPath('avatar_url', Storage::disk('public')->url($path));
         $this->assertSame([$path], $user->profilePhotos()->pluck('path')->all());
+    }
+
+    public function test_avatar_upload_creates_a_small_thumbnail_for_the_lists(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['avatar_path' => null]);
+        Sanctum::actingAs($user, ['access']);
+
+        $response = $this->postJson('/api/v1/me/avatar', ['avatar' => UploadedFile::fake()->image('me.png', 1024, 768)])->assertOk();
+
+        $thumbnail = AvatarThumbnail::path($user->fresh()->avatar_path);
+        Storage::disk('public')->assertExists($thumbnail);
+        $this->assertSame([160, 160], array_slice(getimagesizefromstring(Storage::disk('public')->get($thumbnail)), 0, 2));
+        $response->assertJsonPath('avatar_thumb_url', Storage::disk('public')->url($thumbnail));
+    }
+
+    public function test_a_photo_uploaded_before_thumbnails_gets_one_when_first_shown(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/old.jpg', UploadedFile::fake()->image('old.jpg')->getContent());
+        $user = User::factory()->create(['avatar_path' => 'avatars/old.jpg']);
+        Sanctum::actingAs($user, ['access']);
+
+        $this->getJson("/api/v1/users/{$user->id}")
+            ->assertOk()
+            ->assertJsonPath('avatar_thumb_url', Storage::disk('public')->url('avatars/thumbs/old.jpg'));
+
+        Storage::disk('public')->assertExists('avatars/thumbs/old.jpg');
+    }
+
+    public function test_the_full_photo_is_used_when_no_thumbnail_can_be_made(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/broken.jpg', 'not an image');
+        $user = User::factory()->create(['avatar_path' => 'avatars/broken.jpg']);
+        Sanctum::actingAs($user, ['access']);
+
+        $this->getJson("/api/v1/users/{$user->id}")
+            ->assertOk()
+            ->assertJsonPath('avatar_thumb_url', Storage::disk('public')->url('avatars/broken.jpg'));
     }
 
     public function test_a_push_token_belongs_to_a_single_account(): void

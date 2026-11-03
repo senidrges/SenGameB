@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\Message;
 use App\Models\User;
+use App\Support\AvatarThumbnail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -39,5 +40,6 @@ class DeleteAccount
             ...$attachmentPaths->diff($stillUsedPaths)->values(),
             ...$profilePhotoPaths->values(),
         ]);
+        AvatarThumbnail::delete($profilePhotoPaths);
     }
 }

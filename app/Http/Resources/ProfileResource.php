@@ -27,6 +27,7 @@ class ProfileResource extends JsonResource
             'last_name' => $this->last_name,
             'phone_number' => $this->phone_number,
             'avatar_url' => $this->avatar_url,
+            'avatar_thumb_url' => $this->avatar_thumb_url,
             'status' => $this->status,
             'is_online' => $this->is_online,
             'last_seen' => $this->last_seen_at ?? $this->updated_at,

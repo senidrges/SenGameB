@@ -3,12 +3,18 @@
 namespace App\Notifications\Channels;
 
 use App\Models\User;
+use App\Notifications\Messages\ExpoMessage;
 use App\Notifications\PushNotification;
+use App\Services\Push\FcmClient;
+use App\Services\Push\FcmTokenUnregistered;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ExpoPushChannel
 {
+    public function __construct(private FcmClient $fcm) {}
+
     /**
      * Send the notification to the user's device.
      *
@@ -24,6 +30,10 @@ class ExpoPushChannel
         }
 
         $message = $notification->toExpo($notifiable);
+
+        if ($this->sendThroughFirebase($notifiable, $message)) {
+            return;
+        }
 
         $response = Http::acceptJson()
             ->timeout(10)
@@ -48,5 +58,32 @@ class ExpoPushChannel
             'error' => $response->json('data.details.error'),
             'message' => $response->json('data.message'),
         ]);
+    }
+
+    /**
+     * Pushes with buttons (a category) go straight to Firebase on Android so
+     * the buttons show even when the app is closed (see FcmClient). Expo
+     * remains the fallback when this fails.
+     */
+    private function sendThroughFirebase(User $notifiable, ExpoMessage $message): bool
+    {
+        if ($message->categoryId === null || $notifiable->fcm_token === null || ! FcmClient::isConfigured()) {
+            return false;
+        }
+
+        try {
+            $this->fcm->send($notifiable->fcm_token, $message);
+
+            return true;
+        } catch (FcmTokenUnregistered) {
+            $notifiable->forceFill(['fcm_token' => null])->saveQuietly();
+        } catch (Throwable $exception) {
+            Log::warning('Firebase refused a push notification, sent through Expo instead', [
+                'user_id' => $notifiable->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        return false;
     }
 }

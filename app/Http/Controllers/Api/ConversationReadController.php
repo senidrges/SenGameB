@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Gate;
 class ConversationReadController extends Controller
 {
     /**
-     * Mark the messages the other participants sent as read.
+     * Mark the messages the other participants sent as read (and so
+     * delivered).
      */
     public function store(Request $request, Conversation $conversation): Response
     {
@@ -21,14 +22,19 @@ class ConversationReadController extends Controller
 
         $user = $request->user();
 
-        $updated = $conversation->messages()
+        $unread = $conversation->messages()
             ->where('sender_id', '!=', $user->id)
-            ->where('is_read', false)
-            ->update(['is_read' => true]);
+            ->where('is_read', false);
 
-        if ($updated > 0) {
-            Realtime::send(new MessagesRead($conversation->id, $user->id));
+        $senderIds = (clone $unread)->distinct()->pluck('sender_id')->all();
+
+        if ($senderIds === []) {
+            return response()->noContent();
         }
+
+        $unread->update(['is_read' => true, 'is_delivered' => true]);
+
+        Realtime::send(new MessagesRead($conversation->id, $user->id, $senderIds));
 
         return response()->noContent();
     }

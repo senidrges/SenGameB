@@ -2,12 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Events\MessagesDelivered;
+use App\Events\MessagesRead;
+use App\Events\UserTyping;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Notifications\NewChatMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -301,7 +305,71 @@ class ConversationTest extends TestCase
         $this->postJson("/api/v1/conversations/{$this->conversation->id}/read")->assertNoContent();
 
         $this->assertTrue($received->fresh()->is_read);
+        $this->assertTrue($received->fresh()->is_delivered);
         $this->assertFalse($sent->fresh()->is_read);
+    }
+
+    public function test_reading_tells_the_senders_on_their_own_channel(): void
+    {
+        Event::fake([MessagesRead::class]);
+        Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->bob->id]);
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/read")->assertNoContent();
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/read")->assertNoContent();
+
+        Event::assertDispatchedTimes(MessagesRead::class, 1);
+        Event::assertDispatched(MessagesRead::class, fn (MessagesRead $event) => $event->senderIds === [$this->bob->id]
+            && in_array("private-users.{$this->bob->id}", array_map('strval', $event->broadcastOn()), true));
+    }
+
+    public function test_receiving_marks_the_messages_sent_to_me_as_delivered(): void
+    {
+        Event::fake([MessagesDelivered::class]);
+        $received = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->bob->id]);
+        $sent = Message::factory()->create(['conversation_id' => $this->conversation->id, 'sender_id' => $this->alice->id]);
+        $elsewhere = Message::factory()->create();
+
+        $this->postJson('/api/v1/me/deliveries')->assertNoContent();
+
+        $this->assertTrue($received->fresh()->is_delivered);
+        $this->assertFalse($received->fresh()->is_read);
+        $this->assertFalse($sent->fresh()->is_delivered);
+        $this->assertFalse($elsewhere->fresh()->is_delivered);
+        Event::assertDispatched(MessagesDelivered::class, fn (MessagesDelivered $event) => $event->conversationId === $this->conversation->id
+            && $event->recipientId === $this->alice->id
+            && $event->senderIds === [$this->bob->id]);
+
+        $messages = collect($this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")->json())->keyBy('id');
+        $this->assertTrue($messages[$received->id]['is_delivered']);
+        $this->assertFalse($messages[$sent->id]['is_delivered']);
+    }
+
+    public function test_typing_is_sent_to_the_other_participant(): void
+    {
+        Event::fake([UserTyping::class]);
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/typing")->assertNoContent();
+
+        Event::assertDispatched(UserTyping::class, fn (UserTyping $event) => $event->conversationId === $this->conversation->id
+            && $event->userId === $this->alice->id
+            && $event->recipientIds === [$this->bob->id]);
+    }
+
+    public function test_typing_is_not_sent_across_a_block(): void
+    {
+        Event::fake([UserTyping::class]);
+        $this->bob->blockedUsers()->attach($this->alice);
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/typing")->assertNoContent();
+
+        Event::assertNotDispatched(UserTyping::class);
+    }
+
+    public function test_outsiders_cannot_send_typing(): void
+    {
+        Sanctum::actingAs(User::factory()->create(), ['access']);
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/typing")->assertForbidden();
     }
 
     public function test_forwarding_copies_the_message_to_another_conversation(): void

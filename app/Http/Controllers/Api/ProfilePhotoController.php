@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProfilePhotoResource;
 use App\Models\ProfilePhoto;
 use App\Models\User;
+use App\Support\AvatarThumbnail;
 use App\Support\Realtime;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -57,6 +58,7 @@ class ProfilePhotoController extends Controller
 
         if (! str_starts_with($profilePhoto->path, 'http')) {
             Storage::disk('public')->delete($profilePhoto->path);
+            AvatarThumbnail::delete([$profilePhoto->path]);
         }
 
         if ($isCurrent) {

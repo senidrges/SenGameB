@@ -33,6 +33,7 @@ class MessageResource extends JsonResource
             'payload' => $this->is_deleted ? null : $this->payload,
             'votes' => $this->is_deleted ? null : $this->votes,
             'is_read' => $this->is_read,
+            'is_delivered' => $this->is_delivered || $this->is_read,
             'reply_to_id' => $this->reply_to_id,
             'reactions' => $this->is_deleted ? null : $this->reactions,
             'edited_at' => $this->edited_at,

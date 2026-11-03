@@ -43,6 +43,34 @@ return [
         'queue_connection' => env('EXPO_PUSH_QUEUE_CONNECTION', 'deferred'),
     ],
 
+    // Firebase service account (JSON key, path relative to the project root).
+    // When set, Android pushes with buttons (messages, calls) go straight to
+    // Firebase so the buttons show even when the app is closed.
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS'),
+    ],
+
+    // Audio and video calls. New calls use the first available provider of
+    // the list; "p2p" (direct WebRTC) is free and always available.
+    'calls' => [
+        'providers' => array_values(array_filter(array_map('trim', explode(',', (string) env('CALL_PROVIDERS', 'livekit,p2p'))))),
+        'stun_urls' => array_values(array_filter(array_map('trim', explode(',', (string) env('CALL_STUN_URLS', 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302'))))),
+        // Relay for networks that block direct connections (optional)
+        'turn_urls' => array_values(array_filter(array_map('trim', explode(',', (string) env('CALL_TURN_URLS', ''))))),
+        'turn_username' => env('CALL_TURN_USERNAME'),
+        'turn_credential' => env('CALL_TURN_CREDENTIAL'),
+    ],
+
+    'livekit' => [
+        'url' => env('LIVEKIT_URL'),
+        'api_key' => env('LIVEKIT_API_KEY'),
+        'api_secret' => env('LIVEKIT_API_SECRET'),
+        // Participant minutes of the plan, and the share used before new
+        // calls switch to the next provider
+        'monthly_minutes' => (int) env('LIVEKIT_MONTHLY_MINUTES', 5000),
+        'usage_limit' => (float) env('LIVEKIT_USAGE_LIMIT', 0.9),
+    ],
+
     // Latest Android build on the Play Store, announced to older apps. Native
     // changes cannot reach them over the air: they must update from the store.
     'play_store' => [
