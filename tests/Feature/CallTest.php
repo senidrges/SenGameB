@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\CallStatus;
+use App\Enums\CallType;
+use App\Enums\MessageType;
 use App\Events\CallChanged;
 use App\Events\CallSignal;
 use App\Models\Call;
@@ -228,6 +230,111 @@ class CallTest extends TestCase
         $this->assertSame(CallStatus::Ended, $call->fresh()->status);
         $this->assertNotNull($call->fresh()->ended_at);
         Notification::assertNotSentTo($this->bob, MissedCall::class);
+    }
+
+    public function test_a_finished_call_leaves_a_trace_in_the_conversation(): void
+    {
+        $call = $this->startCall('video');
+        $this->answer($call);
+        $this->travel(95)->seconds();
+
+        $this->postJson("/api/v1/calls/{$call->id}/end")->assertNoContent();
+        // The other phone hangs up too: still a single trace
+        Sanctum::actingAs($this->alice, ['access']);
+        $this->postJson("/api/v1/calls/{$call->id}/end")->assertNoContent();
+
+        $trace = $this->conversation->messages()->sole();
+        $this->assertSame(MessageType::Call, $trace->message_type);
+        $this->assertSame($this->alice->id, $trace->sender_id);
+        $this->assertSame([
+            'call_id' => $call->id,
+            'call_type' => 'video',
+            'status' => 'ended',
+            'duration' => 95,
+        ], $trace->payload);
+        // Answered: nothing new for the callee
+        $this->assertTrue($trace->is_read);
+    }
+
+    public function test_a_missed_call_stays_unread_in_the_conversation(): void
+    {
+        $call = $this->startCall();
+
+        $this->postJson("/api/v1/calls/{$call->id}/end")->assertNoContent();
+
+        $trace = $this->conversation->messages()->sole();
+        $this->assertSame('missed', $trace->payload['status']);
+        $this->assertSame(0, $trace->payload['duration']);
+        $this->assertFalse($trace->is_read);
+    }
+
+    public function test_a_declined_call_leaves_a_trace_in_the_conversation(): void
+    {
+        $call = $this->startCall();
+        Sanctum::actingAs($this->bob, ['access']);
+
+        $this->postJson("/api/v1/calls/{$call->id}/decline")->assertNoContent();
+
+        $this->assertSame('declined', $this->conversation->messages()->sole()->payload['status']);
+    }
+
+    public function test_an_audio_call_switches_to_video(): void
+    {
+        $call = $this->startCall();
+        $this->answer($call);
+
+        $this->postJson("/api/v1/calls/{$call->id}/video")
+            ->assertOk()
+            ->assertJsonPath('type', 'video');
+
+        $this->assertSame(CallType::Video, $call->fresh()->type);
+        Event::assertDispatched(CallChanged::class, fn (CallChanged $event) => $event->call->type === CallType::Video);
+    }
+
+    public function test_only_an_ongoing_call_switches_to_video(): void
+    {
+        $call = $this->startCall();
+
+        $this->postJson("/api/v1/calls/{$call->id}/video")->assertConflict();
+
+        Sanctum::actingAs(User::factory()->create(), ['access']);
+        $this->postJson("/api/v1/calls/{$call->id}/video")->assertNotFound();
+    }
+
+    public function test_the_lock_screen_declines_through_the_signed_link_of_the_push(): void
+    {
+        $call = $this->startCall();
+        $declineUrl = null;
+        Notification::assertSentTo($this->bob, IncomingCall::class, function (IncomingCall $notification) use (&$declineUrl) {
+            $declineUrl = $notification->toExpo($this->bob)->data['declineUrl'];
+
+            return true;
+        });
+
+        $this->app['auth']->forgetGuards();
+        $this->post($declineUrl)->assertNoContent();
+
+        $this->assertSame(CallStatus::Declined, $call->fresh()->status);
+    }
+
+    public function test_the_decline_link_must_be_signed(): void
+    {
+        $call = $this->startCall();
+        $this->app['auth']->forgetGuards();
+
+        $this->post("/api/v1/calls/{$call->id}/notification-decline")->assertForbidden();
+
+        $this->assertSame(CallStatus::Ringing, $call->fresh()->status);
+    }
+
+    public function test_users_cannot_write_call_traces_themselves(): void
+    {
+        Sanctum::actingAs($this->alice, ['access']);
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/messages", [
+            'message_type' => 'call',
+            'payload' => ['status' => 'missed'],
+        ])->assertUnprocessable();
     }
 
     public function test_peer_to_peer_details_are_passed_to_the_other_phone(): void

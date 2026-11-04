@@ -61,13 +61,14 @@ class ExpoPushChannel
     }
 
     /**
-     * Pushes with buttons (a category) go straight to Firebase on Android so
-     * the buttons show even when the app is closed (see FcmClient). Expo
-     * remains the fallback when this fails.
+     * On Android, pushes go straight to Firebase (see FcmClient): buttons
+     * show even when the app is closed, and the app's background task wakes
+     * up for every push (two ticks for the sender, ringing stopped by the
+     * missed call). Expo remains the fallback when this fails.
      */
     private function sendThroughFirebase(User $notifiable, ExpoMessage $message): bool
     {
-        if ($message->categoryId === null || $notifiable->fcm_token === null || ! FcmClient::isConfigured()) {
+        if ($notifiable->fcm_token === null || ! FcmClient::isConfigured()) {
             return false;
         }
 

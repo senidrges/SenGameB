@@ -7,6 +7,7 @@ use App\Models\Call;
 use App\Models\User;
 use App\Notifications\Channels\ExpoPushChannel;
 use App\Notifications\Messages\ExpoMessage;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Makes the callee's phone ring when the app is closed.
@@ -17,6 +18,12 @@ class IncomingCall extends PushNotification
      * Category registered by the app for the "Répondre" / "Refuser" actions.
      */
     public const CATEGORY = 'incoming_call';
+
+    /**
+     * Android channel created by the app, whose sound is a ringtone lasting
+     * about the ringing time (the older "calls" channel only beeps once).
+     */
+    public const CHANNEL = 'incoming_calls';
 
     public function __construct(public Call $call) {}
 
@@ -37,6 +44,12 @@ class IncomingCall extends PushNotification
             'callId' => $this->call->id,
             'callType' => $this->call->type->value,
             'conversationId' => $this->call->conversation_id,
+            // "Refuser" on the lock screen call screen, answered natively
+            'declineUrl' => URL::temporarySignedRoute(
+                'calls.notification-decline',
+                now()->addSeconds(Call::RING_SECONDS + 60),
+                ['call' => $this->call->id],
+            ),
         ];
         $body = $this->call->type === CallType::Video ? 'Appel vidéo entrant' : 'Appel audio entrant';
 
@@ -46,7 +59,7 @@ class IncomingCall extends PushNotification
                 title: 'LoveGames',
                 body: $body,
                 data: $data,
-                channelId: 'calls',
+                channelId: self::CHANNEL,
                 categoryId: self::CATEGORY,
                 priority: 'high',
                 ttl: Call::RING_SECONDS,
@@ -63,7 +76,7 @@ class IncomingCall extends PushNotification
                 'callerUsername' => $caller->username,
                 'callerAvatarUrl' => $caller->avatar_thumb_url ?? '',
             ],
-            channelId: 'calls',
+            channelId: self::CHANNEL,
             categoryId: self::CATEGORY,
             priority: 'high',
             ttl: Call::RING_SECONDS,

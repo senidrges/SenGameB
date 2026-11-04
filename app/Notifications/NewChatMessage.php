@@ -25,6 +25,7 @@ class NewChatMessage extends PushNotification
                 data: [
                     'type' => 'new_message',
                     'conversationId' => $this->message->conversation_id,
+                    'messageId' => $this->message->id,
                 ],
                 channelId: 'messages',
             );
@@ -38,6 +39,7 @@ class NewChatMessage extends PushNotification
             data: [
                 'type' => 'new_message',
                 'conversationId' => $this->message->conversation_id,
+                'messageId' => $this->message->id,
                 'senderUsername' => $sender->username,
                 'senderAvatarUrl' => $sender->avatar_url ?? '',
             ],

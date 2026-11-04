@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\FinishCall;
 use App\Enums\CallStatus;
 use App\Enums\CallType;
 use App\Events\CallChanged;
@@ -10,7 +11,6 @@ use App\Http\Resources\CallResource;
 use App\Models\Call;
 use App\Models\Conversation;
 use App\Notifications\IncomingCall;
-use App\Notifications\MissedCall;
 use App\Services\Calls\CallProviders;
 use App\Support\Realtime;
 use Illuminate\Http\JsonResponse;
@@ -85,13 +85,12 @@ class CallController extends Controller
         ]);
     }
 
-    public function decline(Request $request, Call $call): Response
+    public function decline(Request $request, Call $call, FinishCall $finishCall): Response
     {
         abort_unless($call->callee_id === $request->user()->id, 404);
 
         if ($call->status === CallStatus::Ringing) {
-            $call->update(['status' => CallStatus::Declined, 'ended_at' => now()]);
-            Realtime::send(new CallChanged($call));
+            $finishCall->handle($call, CallStatus::Declined);
         }
 
         return response()->noContent();
@@ -100,23 +99,12 @@ class CallController extends Controller
     /**
      * Hang up. Before the answer, the callee missed the call.
      */
-    public function end(Request $request, Call $call): Response
+    public function end(Request $request, Call $call, FinishCall $finishCall): Response
     {
         abort_unless($call->hasParticipant($request->user()), 404);
 
-        if ($call->status->isFinished()) {
-            return response()->noContent();
-        }
-
-        $wasRinging = $call->status === CallStatus::Ringing;
-        $call->update([
-            'status' => $wasRinging ? CallStatus::Missed : CallStatus::Ended,
-            'ended_at' => now(),
-        ]);
-        Realtime::send(new CallChanged($call));
-
-        if ($wasRinging) {
-            $call->callee->notify(new MissedCall($call));
+        if (! $call->status->isFinished()) {
+            $finishCall->handle($call, $call->status === CallStatus::Ringing ? CallStatus::Missed : CallStatus::Ended);
         }
 
         return response()->noContent();

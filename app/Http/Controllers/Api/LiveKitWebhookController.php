@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\FinishCall;
 use App\Enums\CallStatus;
-use App\Events\CallChanged;
 use App\Http\Controllers\Controller;
 use App\Models\Call;
 use App\Services\Calls\HmacJwt;
-use App\Support\Realtime;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -18,7 +17,7 @@ use Illuminate\Http\Response;
  */
 class LiveKitWebhookController extends Controller
 {
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, FinishCall $finishCall): Response
     {
         $config = config('services.livekit');
         $body = $request->getContent();
@@ -36,11 +35,7 @@ class LiveKitWebhookController extends Controller
             $call = Call::find($request->json('room.name'));
 
             if ($call !== null && ! $call->status->isFinished()) {
-                $call->update([
-                    'status' => $call->status === CallStatus::Ongoing ? CallStatus::Ended : CallStatus::Missed,
-                    'ended_at' => now(),
-                ]);
-                Realtime::send(new CallChanged($call));
+                $finishCall->handle($call, $call->status === CallStatus::Ongoing ? CallStatus::Ended : CallStatus::Missed);
             }
         }
 

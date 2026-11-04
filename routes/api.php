@@ -14,7 +14,9 @@ use App\Http\Controllers\Api\Auth\SessionController;
 use App\Http\Controllers\Api\AvatarController;
 use App\Http\Controllers\Api\BlockController;
 use App\Http\Controllers\Api\CallController;
+use App\Http\Controllers\Api\CallNotificationDeclineController;
 use App\Http\Controllers\Api\CallSignalController;
+use App\Http\Controllers\Api\CallVideoController;
 use App\Http\Controllers\Api\ChatLockCodeController;
 use App\Http\Controllers\Api\ContactMatchController;
 use App\Http\Controllers\Api\ConversationArchiveController;
@@ -58,6 +60,11 @@ Route::get('app-version', [AppVersionController::class, 'show']);
 
 // Signed by LiveKit Cloud (see LiveKitWebhookController)
 Route::post('webhooks/livekit', LiveKitWebhookController::class);
+
+// Signed link of the incoming call push (see IncomingCall)
+Route::post('calls/{call}/notification-decline', CallNotificationDeclineController::class)
+    ->middleware(['signed', 'throttle:30,1'])
+    ->name('calls.notification-decline');
 
 Route::prefix('auth')->middleware('throttle:auth')->group(function () {
     Route::post('register', [RegisteredUserController::class, 'store']);
@@ -120,6 +127,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::post('calls/{call}/end', [CallController::class, 'end']);
     Route::get('calls/{call}/connection', [CallController::class, 'connection']);
     Route::post('calls/{call}/signals', [CallSignalController::class, 'store']);
+    Route::post('calls/{call}/video', [CallVideoController::class, 'store']);
 
     Route::patch('messages/{message}', [MessageController::class, 'update']);
     Route::delete('messages/{message}', [MessageController::class, 'destroy']);

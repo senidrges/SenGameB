@@ -12,6 +12,8 @@ enum MessageType: string
     case Contact = 'contact';
     case Poll = 'poll';
     case Event = 'event';
+    // Trace of an audio or video call, written by the server (see FinishCall)
+    case Call = 'call';
 
     /**
      * Whether the message carries an uploaded file.
@@ -19,6 +21,15 @@ enum MessageType: string
     public function hasAttachment(): bool
     {
         return in_array($this, [self::Image, self::Audio, self::File], true);
+    }
+
+    /**
+     * Whether users can send this kind of message themselves (call traces
+     * are only written by the server).
+     */
+    public function canBeSent(): bool
+    {
+        return $this !== self::Call;
     }
 
     /**
@@ -45,6 +56,11 @@ enum MessageType: string
             self::Contact => '👤 Contact : '.($payload['name'] ?? ''),
             self::Poll => '📊 Sondage : '.($payload['question'] ?? ''),
             self::Event => '📅 Événement : '.($payload['title'] ?? ''),
+            self::Call => match ($payload['status'] ?? null) {
+                'missed' => '📞 Appel manqué',
+                'declined' => '📞 Appel refusé',
+                default => ($payload['call_type'] ?? null) === 'video' ? '📹 Appel vidéo' : '📞 Appel audio',
+            },
         };
     }
 }

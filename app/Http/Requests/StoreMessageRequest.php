@@ -34,7 +34,7 @@ class StoreMessageRequest extends FormRequest
         $conversation = $this->conversation();
 
         return [
-            'message_type' => ['required', Rule::enum(MessageType::class)],
+            'message_type' => ['required', Rule::enum(MessageType::class)->except([MessageType::Call])],
             'content' => ['required_if:message_type,text', 'nullable', 'string', 'max:5000'],
             'attachment_path' => [
                 'exclude_unless:message_type,image,audio,file',

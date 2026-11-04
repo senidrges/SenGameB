@@ -21,6 +21,7 @@ class MessageForwardController extends Controller
     {
         Gate::authorize('view', $message);
         abort_if($message->is_deleted, 422, 'Ce message a été supprimé.');
+        abort_unless($message->message_type->canBeSent(), 422, 'Ce message ne peut pas être transféré.');
 
         $validated = $request->validate([
             'conversation_id' => ['required', 'uuid', 'exists:conversations,id'],
