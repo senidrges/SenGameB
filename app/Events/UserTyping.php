@@ -7,18 +7,32 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
- * A participant is writing in a conversation. Sent to the personal channels
- * of the others so both the chat and the conversation list show it. The app
- * hides it after a few seconds without a new event.
+ * A participant is writing, or recording a voice message, in a conversation
+ * or a game chat. Sent to the personal channels of the others so both the
+ * chat and the lists show it. The app hides it after a few seconds without a
+ * new event.
  */
 class UserTyping implements ShouldBroadcastNow
 {
     use Dispatchable;
 
+    public const TYPING = 'typing';
+
+    public const RECORDING = 'recording';
+
+    public const ACTIVITIES = [self::TYPING, self::RECORDING];
+
     /**
      * @param  list<string>  $recipientIds
+     * @param  bool  $inGame  whether $conversationId is the id of a game chat
      */
-    public function __construct(public string $conversationId, public string $userId, public array $recipientIds) {}
+    public function __construct(
+        public string $conversationId,
+        public string $userId,
+        public array $recipientIds,
+        public string $activity = self::TYPING,
+        public bool $inGame = false,
+    ) {}
 
     /**
      * @return list<PrivateChannel>
@@ -30,7 +44,7 @@ class UserTyping implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'conversation.typing';
+        return $this->inGame ? 'game.typing' : 'conversation.typing';
     }
 
     /**
@@ -39,8 +53,9 @@ class UserTyping implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'conversation_id' => $this->conversationId,
+            $this->inGame ? 'game_id' : 'conversation_id' => $this->conversationId,
             'user_id' => $this->userId,
+            'activity' => $this->activity,
         ];
     }
 }

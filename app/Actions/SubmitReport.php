@@ -115,6 +115,10 @@ class SubmitReport
             ],
             $target instanceof GameMessage => [
                 'content' => $target->content,
+                'message_type' => $target->message_type->value,
+                'file_url' => $target->file_url,
+                'file_name' => $target->file_name,
+                'payload' => $target->payload,
                 'sender_username' => $target->sender?->username,
                 'game_id' => $target->game_id,
                 'game_title' => $target->game->title,

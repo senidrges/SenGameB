@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MessageType;
 use App\Events\MessagesDelivered;
 use App\Events\MessagesRead;
 use App\Events\UserTyping;
@@ -158,6 +159,90 @@ class ConversationTest extends TestCase
         $this->postJson("/api/v1/conversations/{$this->conversation->id}/attachments", [
             'file' => UploadedFile::fake()->createWithContent('shell.php', '<?php echo 1;'),
         ])->assertJsonValidationErrors('file');
+    }
+
+    public function test_a_pdf_is_sent_with_the_picture_of_its_first_page(): void
+    {
+        Storage::fake('public');
+        $folder = "/api/v1/conversations/{$this->conversation->id}";
+
+        $preview = $this->postJson("{$folder}/attachments", ['file' => UploadedFile::fake()->image('apercu.jpg')])->json();
+        $pdf = $this->postJson("{$folder}/attachments", [
+            'file' => UploadedFile::fake()->create('upload', 300, 'application/pdf'),
+            'name' => 'Contrat.pdf',
+        ])->assertCreated()->assertJsonPath('name', 'Contrat.pdf')->json();
+
+        $this->postJson("{$folder}/messages", [
+            'message_type' => 'file',
+            'attachment_path' => $pdf['path'],
+            'file_name' => 'Contrat.pdf',
+            'payload' => ['preview_path' => $preview['path'], 'preview_width' => 720, 'preview_height' => 1018, 'page_count' => 3],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('payload.preview_url', $preview['url'])
+            ->assertJsonPath('payload.page_count', 3);
+    }
+
+    public function test_a_document_preview_must_come_from_the_same_chat(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('chat-media/other/apercu.jpg', 'x');
+        $pdf = $this->postJson("/api/v1/conversations/{$this->conversation->id}/attachments", [
+            'file' => UploadedFile::fake()->create('Contrat.pdf', 10),
+        ])->json();
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/messages", [
+            'message_type' => 'file',
+            'attachment_path' => $pdf['path'],
+            'payload' => ['preview_path' => 'chat-media/other/apercu.jpg', 'preview_width' => 10, 'preview_height' => 10],
+        ])->assertJsonValidationErrors('payload.preview_path');
+    }
+
+    public function test_attachments_are_limited_to_the_configured_size(): void
+    {
+        Storage::fake('public');
+        config(['filesystems.chat_attachment_max_mb' => 1]);
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/attachments", [
+            'file' => UploadedFile::fake()->create('film.mkv', 2 * 1024),
+        ])->assertJsonValidationErrors(['file' => 'Le fichier dépasse 1 Mo.']);
+    }
+
+    public function test_documents_of_any_format_are_accepted(): void
+    {
+        Storage::fake('public');
+
+        foreach (['archive.rar', 'livre.epub', 'musique.flac', 'app.apk', 'notes.odt'] as $name) {
+            $this->postJson("/api/v1/conversations/{$this->conversation->id}/attachments", [
+                'file' => UploadedFile::fake()->create($name, 50),
+            ])->assertCreated()->assertJsonPath('name', $name);
+        }
+    }
+
+    public function test_web_pages_are_refused_even_when_disguised(): void
+    {
+        Storage::fake('public');
+
+        foreach (['page.html', 'image.svg', 'script.js'] as $name) {
+            $this->postJson("/api/v1/conversations/{$this->conversation->id}/attachments", [
+                'file' => UploadedFile::fake()->create($name, 1),
+            ])->assertJsonValidationErrors('file');
+        }
+
+        // A web page named like a photo: its contents give it away
+        $path = tempnam(sys_get_temp_dir(), 'upload');
+        file_put_contents($path, '<!DOCTYPE html><html><body><script>alert(1)</script></body></html>');
+
+        $this->postJson("/api/v1/conversations/{$this->conversation->id}/attachments", [
+            'file' => new UploadedFile($path, 'photo.jpg', null, null, true),
+        ])->assertJsonValidationErrors('file');
+    }
+
+    public function test_push_previews_tell_voice_messages_music_and_documents_apart(): void
+    {
+        $this->assertSame('🎤 Message vocal', MessageType::Audio->previewLabel(null, null, 'audio.m4a'));
+        $this->assertSame('🎵 Chanson.mp3', MessageType::File->previewLabel(null, null, 'Chanson.mp3'));
+        $this->assertSame('📄 Contrat.pdf', MessageType::File->previewLabel(null, null, 'Contrat.pdf'));
     }
 
     public function test_attachments_of_another_conversation_cannot_be_sent(): void

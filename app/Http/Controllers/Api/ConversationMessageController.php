@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\FinishCall;
 use App\Actions\SendMessage;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMessageRequest;
@@ -19,9 +20,12 @@ class ConversationMessageController extends Controller
      * Messages the user deleted "for me", or that predate their deletion of
      * the conversation, are left out.
      */
-    public function index(Request $request, Conversation $conversation): AnonymousResourceCollection
+    public function index(Request $request, Conversation $conversation, FinishCall $finishCall): AnonymousResourceCollection
     {
         Gate::authorize('view', $conversation);
+
+        // Abandoned calls get their trace before the messages are listed
+        $finishCall->finishExpiredFor($request->user());
 
         $validated = $request->validate([
             'before' => ['nullable', 'date'],

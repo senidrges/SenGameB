@@ -24,4 +24,20 @@ class PublicFile
 
         return Storage::disk('public')->url($path);
     }
+
+    /**
+     * Data of a message as sent to the app: the picture of a document's
+     * first page gets its public URL.
+     *
+     * @param  array<string, mixed>|null  $payload
+     * @return array<string, mixed>|null
+     */
+    public static function withPreviewUrl(?array $payload): ?array
+    {
+        if (! isset($payload['preview_path'])) {
+            return $payload;
+        }
+
+        return [...$payload, 'preview_url' => self::url($payload['preview_path'])];
+    }
 }

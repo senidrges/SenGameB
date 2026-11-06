@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class StoreMessageRequest extends FormRequest
 {
@@ -31,7 +32,7 @@ class StoreMessageRequest extends FormRequest
      */
     public function rules(): array
     {
-        $conversation = $this->conversation();
+        $folder = $this->attachmentFolder();
 
         return [
             'message_type' => ['required', Rule::enum(MessageType::class)->except([MessageType::Call])],
@@ -40,20 +41,12 @@ class StoreMessageRequest extends FormRequest
                 'exclude_unless:message_type,image,audio,file',
                 'required',
                 'string',
-                function (string $attribute, mixed $value, Closure $fail) use ($conversation): void {
-                    if (! str_starts_with($value, "chat-media/{$conversation->id}/") || str_contains($value, '..') || ! Storage::disk('public')->exists($value)) {
-                        $fail('Le fichier joint est introuvable.');
-                    }
-                },
+                $this->uploadedInto($folder),
             ],
             'file_name' => ['exclude_unless:message_type,image,audio,file', 'nullable', 'string', 'max:255'],
             'file_size' => ['exclude_unless:message_type,image,audio,file', 'nullable', 'integer', 'min:0'],
             ...$this->payloadRules(),
-            'reply_to_id' => [
-                'nullable',
-                'uuid',
-                Rule::exists('messages', 'id')->where('conversation_id', $conversation->id),
-            ],
+            'reply_to_id' => ['nullable', 'uuid', $this->replyToRule()],
         ];
     }
 
@@ -65,6 +58,14 @@ class StoreMessageRequest extends FormRequest
     private function payloadRules(): array
     {
         return match (MessageType::tryFrom((string) $this->input('message_type'))) {
+            // A document: picture of its first page (PDF) and its page count
+            MessageType::File => [
+                'payload' => ['nullable', 'array'],
+                'payload.preview_path' => ['required_with:payload', 'string', $this->uploadedInto($this->attachmentFolder())],
+                'payload.preview_width' => ['required_with:payload', 'integer', 'between:1,4000'],
+                'payload.preview_height' => ['required_with:payload', 'integer', 'between:1,8000'],
+                'payload.page_count' => ['nullable', 'integer', 'between:1,100000'],
+            ],
             MessageType::Location => [
                 'payload' => ['required', 'array'],
                 'payload.latitude' => ['required', 'numeric', 'between:-90,90'],
@@ -128,6 +129,12 @@ class StoreMessageRequest extends FormRequest
     private function payloadOf(MessageType $type, array $payload): ?array
     {
         return match ($type) {
+            MessageType::File => isset($payload['preview_path']) ? [
+                'preview_path' => $payload['preview_path'],
+                'preview_width' => (int) $payload['preview_width'],
+                'preview_height' => (int) $payload['preview_height'],
+                'page_count' => isset($payload['page_count']) ? (int) $payload['page_count'] : null,
+            ] : null,
             MessageType::Location => [
                 'latitude' => (float) $payload['latitude'],
                 'longitude' => (float) $payload['longitude'],
@@ -154,6 +161,34 @@ class StoreMessageRequest extends FormRequest
             ],
             default => null,
         };
+    }
+
+    /**
+     * The file was uploaded for this chat (see AttachmentController).
+     */
+    private function uploadedInto(string $folder): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($folder): void {
+            if (! is_string($value) || ! str_starts_with($value, "{$folder}/") || str_contains($value, '..') || ! Storage::disk('public')->exists($value)) {
+                $fail('Le fichier joint est introuvable.');
+            }
+        };
+    }
+
+    /**
+     * Folder where the files attached to this chat are uploaded.
+     */
+    protected function attachmentFolder(): string
+    {
+        return "chat-media/{$this->conversation()->id}";
+    }
+
+    /**
+     * The quoted message must belong to the same chat.
+     */
+    protected function replyToRule(): Exists
+    {
+        return Rule::exists('messages', 'id')->where('conversation_id', $this->conversation()->id);
     }
 
     private function conversation(): Conversation

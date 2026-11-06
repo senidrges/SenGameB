@@ -2,19 +2,37 @@
 
 namespace App\Models;
 
+use App\Enums\MessageType;
 use App\Models\Concerns\HasReactions;
+use App\Models\Concerns\HasVotes;
+use App\Support\PublicFile;
 use Database\Factories\GameMessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['game_id', 'sender_id', 'reply_to_id', 'content'])]
+/**
+ * A message of a game chat. Like a conversation message, it can be a voice
+ * message, a photo, a file, a location, a contact, a poll or an event.
+ */
+#[Fillable([
+    'game_id',
+    'sender_id',
+    'reply_to_id',
+    'content',
+    'message_type',
+    'file_path',
+    'file_name',
+    'file_size',
+    'payload',
+])]
 class GameMessage extends Model
 {
     /** @use HasFactory<GameMessageFactory> */
-    use HasFactory, HasReactions, HasUuids;
+    use HasFactory, HasReactions, HasUuids, HasVotes;
 
     /**
      * The model's default values for attributes.
@@ -22,6 +40,9 @@ class GameMessage extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'message_type' => 'text',
+        'is_delivered' => false,
+        'is_read' => false,
         'is_deleted' => false,
     ];
 
@@ -33,9 +54,15 @@ class GameMessage extends Model
     protected function casts(): array
     {
         return [
+            'message_type' => MessageType::class,
             'reactions' => 'array',
+            'payload' => 'array',
+            'votes' => 'array',
+            'is_delivered' => 'boolean',
+            'is_read' => 'boolean',
             'is_deleted' => 'boolean',
             'edited_at' => 'datetime',
+            'file_size' => 'integer',
         ];
     }
 
@@ -45,6 +72,14 @@ class GameMessage extends Model
     public function markDeletedForEveryone(): void
     {
         $this->forceFill(['is_deleted' => true, 'content' => '', 'reactions' => null])->save();
+    }
+
+    /**
+     * @return Attribute<string|null, never>
+     */
+    protected function fileUrl(): Attribute
+    {
+        return Attribute::get(fn (): ?string => PublicFile::url($this->file_path));
     }
 
     /**

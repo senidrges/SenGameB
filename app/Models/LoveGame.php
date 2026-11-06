@@ -109,7 +109,7 @@ class LoveGame extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'game_participants', 'game_id', 'user_id')
-            ->withPivot('role', 'joined_at');
+            ->withPivot('role', 'joined_at', 'last_delivered_at', 'last_read_at');
     }
 
     /**

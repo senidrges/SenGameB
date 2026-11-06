@@ -27,12 +27,16 @@ use App\Http\Controllers\Api\ConversationMuteController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\GameActivationController;
+use App\Http\Controllers\Api\GameAttachmentController;
 use App\Http\Controllers\Api\GameChoiceController;
 use App\Http\Controllers\Api\GameItemController;
 use App\Http\Controllers\Api\GameMessageController;
 use App\Http\Controllers\Api\GameMessageReactionController;
+use App\Http\Controllers\Api\GameMessageVoteController;
+use App\Http\Controllers\Api\GameReadController;
 use App\Http\Controllers\Api\GameResetController;
 use App\Http\Controllers\Api\GameTemplateController;
+use App\Http\Controllers\Api\GameTypingController;
 use App\Http\Controllers\Api\LiveKitWebhookController;
 use App\Http\Controllers\Api\LoveGameController;
 use App\Http\Controllers\Api\MessageController;
@@ -146,6 +150,11 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::patch('game-messages/{gameMessage}', [GameMessageController::class, 'update']);
     Route::delete('game-messages/{gameMessage}', [GameMessageController::class, 'destroy']);
     Route::post('game-messages/{gameMessage}/reactions', [GameMessageReactionController::class, 'store']);
+    Route::post('game-messages/{gameMessage}/votes', [GameMessageVoteController::class, 'store']);
+    Route::post('games/{game}/attachments', [GameAttachmentController::class, 'store']);
+    Route::post('games/{game}/read', [GameReadController::class, 'store']);
+    Route::post('games/{game}/typing', [GameTypingController::class, 'store'])
+        ->middleware('throttle:60,1');
 
     Route::get('game-templates', [GameTemplateController::class, 'index']);
 

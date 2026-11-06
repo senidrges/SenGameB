@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\SendGameMessage;
+use App\Enums\MessageType;
 use App\Events\GameMessageChanged;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreGameMessageRequest;
 use App\Http\Resources\GameMessageResource;
 use App\Models\GameMessage;
 use App\Models\LoveGame;
@@ -13,7 +15,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 
 class GameMessageController extends Controller
 {
@@ -24,16 +25,12 @@ class GameMessageController extends Controller
         return GameMessageResource::collection($game->messages()->with(['sender', 'replyTo.sender'])->get());
     }
 
-    public function store(Request $request, LoveGame $game, SendGameMessage $sendGameMessage): JsonResponse
+    /**
+     * Text, voice message, photo, file, location, contact, poll or event.
+     */
+    public function store(StoreGameMessageRequest $request, LoveGame $game, SendGameMessage $sendGameMessage): JsonResponse
     {
-        Gate::authorize('view', $game);
-
-        $validated = $request->validate([
-            'content' => ['required', 'string', 'max:5000'],
-            'reply_to_id' => ['nullable', 'uuid', Rule::exists('game_messages', 'id')->where('game_id', $game->id)],
-        ]);
-
-        $message = $sendGameMessage->handle($game, $request->user(), trim($validated['content']), $validated['reply_to_id'] ?? null);
+        $message = $sendGameMessage->handle($game, $request->user(), $request->messageAttributes());
 
         return GameMessageResource::make($message)->response()->setStatusCode(201);
     }
@@ -41,6 +38,7 @@ class GameMessageController extends Controller
     public function update(Request $request, GameMessage $gameMessage): GameMessageResource
     {
         Gate::authorize('update', $gameMessage);
+        abort_unless($gameMessage->message_type === MessageType::Text, 422, 'Seuls les messages texte peuvent être modifiés.');
 
         $validated = $request->validate([
             'content' => ['required', 'string', 'max:5000'],

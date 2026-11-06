@@ -383,4 +383,36 @@ class CallTest extends TestCase
 
         $this->assertSame(CallStatus::Ongoing, $call->fresh()->status);
     }
+
+    public function test_an_abandoned_call_is_recorded_as_missed_when_the_conversation_is_opened(): void
+    {
+        // The caller's app died while it rang: nobody reported the end
+        $call = $this->startCall();
+        $this->travel(Call::RING_SECONDS + 30)->seconds();
+
+        Sanctum::actingAs($this->bob, ['access']);
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")
+            ->assertOk()
+            ->assertJsonPath('0.message_type', 'call')
+            ->assertJsonPath('0.payload.status', 'missed')
+            ->assertJsonPath('0.payload.call_type', 'audio');
+
+        $this->assertSame(CallStatus::Missed, $call->fresh()->status);
+        // Too late for a push about it
+        Notification::assertNotSentTo($this->bob, MissedCall::class);
+
+        // Opening it again does not record it twice
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/messages")->assertJsonCount(1);
+    }
+
+    public function test_reading_an_expired_ringing_call_finishes_it(): void
+    {
+        $call = $this->startCall('video');
+        $this->travel(Call::RING_SECONDS + 1)->seconds();
+
+        $this->getJson("/api/v1/calls/{$call->id}")->assertOk()->assertJsonPath('status', 'missed');
+
+        $this->assertSame(CallStatus::Missed, $call->fresh()->status);
+        $this->assertSame('video', $this->conversation->messages()->sole()->payload['call_type']);
+    }
 }

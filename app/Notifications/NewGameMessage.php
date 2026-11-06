@@ -14,7 +14,7 @@ class NewGameMessage extends PushNotification
     {
         return new ExpoMessage(
             title: "{$this->message->sender->username} - {$this->message->game->title}",
-            body: $this->message->content,
+            body: $this->message->message_type->previewLabel($this->message->content, $this->message->payload, $this->message->file_name),
             data: ['type' => 'new_game_message', 'gameId' => $this->message->game_id],
             channelId: 'games',
         );

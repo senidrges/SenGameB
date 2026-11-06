@@ -15,15 +15,13 @@ class SendGameMessage
 {
     /**
      * Post a message in the game chat and tell the other participants.
+     *
+     * @param  array{message_type?: string, content?: string|null, file_path?: string|null, file_name?: string|null, file_size?: int|null, payload?: array<string, mixed>|null, reply_to_id?: string|null}  $attributes
      */
-    public function handle(LoveGame $game, User $sender, string $content, ?string $replyToId = null): GameMessage
+    public function handle(LoveGame $game, User $sender, array $attributes): GameMessage
     {
-        $message = DB::transaction(function () use ($game, $sender, $content, $replyToId): GameMessage {
-            $message = $game->messages()->create([
-                'sender_id' => $sender->id,
-                'content' => $content,
-                'reply_to_id' => $replyToId,
-            ]);
+        $message = DB::transaction(function () use ($game, $sender, $attributes): GameMessage {
+            $message = $game->messages()->create([...$attributes, 'sender_id' => $sender->id]);
             $game->touch();
 
             return $message;

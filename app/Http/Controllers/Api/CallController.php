@@ -25,7 +25,7 @@ use Illuminate\Validation\Rule;
  */
 class CallController extends Controller
 {
-    public function store(Request $request, Conversation $conversation, CallProviders $providers): CallResource
+    public function store(Request $request, Conversation $conversation, CallProviders $providers, FinishCall $finishCall): CallResource
     {
         Gate::authorize('sendMessage', $conversation);
 
@@ -35,6 +35,7 @@ class CallController extends Controller
 
         $caller = $request->user();
         $callee = $conversation->participants()->whereKeyNot($caller->id)->firstOrFail();
+        $finishCall->finishExpiredFor($caller);
 
         $isBusy = Call::query()
             ->inProgress()
@@ -60,9 +61,15 @@ class CallController extends Controller
     /**
      * Opened from the push notification: is it still ringing?
      */
-    public function show(Request $request, Call $call): CallResource
+    public function show(Request $request, Call $call, FinishCall $finishCall): CallResource
     {
         abort_unless($call->hasParticipant($request->user()), 404);
+
+        // Nobody reported the end of the ringing: it was missed
+        if ($call->status === CallStatus::Ringing && ! $call->isRinging()) {
+            $finishCall->handle($call, CallStatus::Missed, $call->created_at->copy()->addSeconds(Call::RING_SECONDS));
+            $call->refresh();
+        }
 
         return CallResource::make($call->load(['caller', 'callee']));
     }

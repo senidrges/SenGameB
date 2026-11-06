@@ -16,6 +16,14 @@ return [
     'default' => env('FILESYSTEM_DISK', 'local'),
 
     /*
+    | Largest file that can be sent in a chat, in megabytes. PHP's
+    | upload_max_filesize and post_max_size must allow it (the host allows
+    | 512M), as well as the web server in front of PHP.
+    */
+
+    'chat_attachment_max_mb' => (int) env('CHAT_ATTACHMENT_MAX_MB', 500),
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------

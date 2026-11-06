@@ -35,7 +35,7 @@ class NewChatMessage extends PushNotification
 
         return new ExpoMessage(
             title: $sender->username,
-            body: $this->message->message_type->previewLabel($this->message->content, $this->message->payload),
+            body: $this->message->message_type->previewLabel($this->message->content, $this->message->payload, $this->message->file_name),
             data: [
                 'type' => 'new_message',
                 'conversationId' => $this->message->conversation_id,

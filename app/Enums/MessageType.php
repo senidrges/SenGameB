@@ -43,15 +43,18 @@ enum MessageType: string
     /**
      * Short text used in push notifications for this kind of message.
      *
+     * Like WhatsApp: 🎤 for a voice message recorded with the microphone, 🎵
+     * for a music file sent as an attachment, 📄 for any other document.
+     *
      * @param  array<string, mixed>|null  $payload
      */
-    public function previewLabel(?string $content, ?array $payload = null): string
+    public function previewLabel(?string $content, ?array $payload = null, ?string $fileName = null): string
     {
         return match ($this) {
             self::Text => (string) $content,
             self::Image => '📷 Photo',
-            self::Audio => '🎵 Message vocal',
-            self::File => '📎 Fichier',
+            self::Audio => '🎤 Message vocal',
+            self::File => (self::isMusicFile($fileName) ? '🎵 ' : '📄 ').($fileName ?: 'Fichier'),
             self::Location => '📍 Localisation',
             self::Contact => '👤 Contact : '.($payload['name'] ?? ''),
             self::Poll => '📊 Sondage : '.($payload['question'] ?? ''),
@@ -62,5 +65,15 @@ enum MessageType: string
                 default => ($payload['call_type'] ?? null) === 'video' ? '📹 Appel vidéo' : '📞 Appel audio',
             },
         };
+    }
+
+    /**
+     * Whether an attached file is music (or another audio file).
+     */
+    private static function isMusicFile(?string $fileName): bool
+    {
+        $extension = strtolower(pathinfo((string) $fileName, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'amr', 'wma'], true);
     }
 }

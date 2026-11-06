@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Message;
+use App\Support\PublicFile;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,7 +31,7 @@ class MessageResource extends JsonResource
             'file_url' => $this->is_deleted ? null : $this->file_url,
             'file_name' => $this->is_deleted ? null : $this->file_name,
             'file_size' => $this->is_deleted ? null : $this->file_size,
-            'payload' => $this->is_deleted ? null : $this->payload,
+            'payload' => $this->is_deleted ? null : PublicFile::withPreviewUrl($this->payload),
             'votes' => $this->is_deleted ? null : $this->votes,
             'is_read' => $this->is_read,
             'is_delivered' => $this->is_delivered || $this->is_read,
@@ -47,7 +48,7 @@ class MessageResource extends JsonResource
                 'message_type' => $this->replyTo->message_type,
                 'file_url' => $this->replyTo->is_deleted ? null : $this->replyTo->file_url,
                 'file_name' => $this->replyTo->is_deleted ? null : $this->replyTo->file_name,
-                'payload' => $this->replyTo->is_deleted ? null : $this->replyTo->payload,
+                'payload' => $this->replyTo->is_deleted ? null : PublicFile::withPreviewUrl($this->replyTo->payload),
                 'sender' => $this->replyTo->relationLoaded('sender') ? [
                     'username' => $this->replyTo->sender->username,
                     'avatar_url' => $this->replyTo->sender->avatar_url,

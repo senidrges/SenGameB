@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\UpdateGameReceipts;
 use App\Events\MessagesDelivered;
 use App\Http\Controllers\Controller;
 use App\Models\Message;
@@ -17,9 +18,11 @@ class MessageDeliveryController extends Controller
      * The user's phone received every message sent to them so far: called
      * when the app opens, gets a message in realtime or a push notification.
      */
-    public function store(Request $request): Response
+    public function store(Request $request, UpdateGameReceipts $gameReceipts): Response
     {
         $user = $request->user();
+        // Game chats too
+        $gameReceipts->markDeliveredFor($user);
 
         $pending = Message::query()
             ->whereIn('conversation_id', DB::table('conversation_participants')->where('user_id', $user->id)->select('conversation_id'))

@@ -10,16 +10,22 @@ use App\Support\Realtime;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class ConversationTypingController extends Controller
 {
     /**
-     * Tell the others the user is writing. The app calls it every few
-     * seconds while the user types. Nothing is sent when a block is in place.
+     * Tell the others the user is writing or recording a voice message. The
+     * app calls it every few seconds meanwhile. Nothing is sent when a block
+     * is in place.
      */
     public function store(Request $request, Conversation $conversation): Response
     {
         Gate::authorize('view', $conversation);
+
+        $validated = $request->validate([
+            'activity' => ['nullable', Rule::in(UserTyping::ACTIVITIES)],
+        ]);
 
         $user = $request->user();
 
@@ -28,7 +34,12 @@ class ConversationTypingController extends Controller
             ->modelKeys();
 
         if ($recipientIds !== []) {
-            Realtime::send(new UserTyping($conversation->id, $user->id, array_values($recipientIds)));
+            Realtime::send(new UserTyping(
+                $conversation->id,
+                $user->id,
+                array_values($recipientIds),
+                $validated['activity'] ?? UserTyping::TYPING,
+            ));
         }
 
         return response()->noContent();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\FinishCall;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ConversationResource;
 use App\Models\Conversation;
@@ -20,9 +21,11 @@ class ConversationController extends Controller
      * Conversations of the user, most recent activity first. A conversation
      * the user deleted comes back only with a message sent after that.
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request, FinishCall $finishCall): AnonymousResourceCollection
     {
         $user = $request->user();
+        // Abandoned calls show up as missed in the list
+        $finishCall->finishExpiredFor($user);
 
         $conversations = $user->conversations()
             ->with(Conversation::participantsWithBlockStateFor($user))
