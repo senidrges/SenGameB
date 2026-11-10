@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\CallParticipantStatus;
 use App\Enums\CallStatus;
 use App\Enums\MessageType;
 use App\Events\CallChanged;
@@ -39,6 +40,25 @@ class FinishCall
 
             $call->refresh();
 
+            // Group call: nobody but the caller ever joined, the members missed it
+            $missedIds = [];
+            if ($call->is_group) {
+                $answered = $call->participants()->whereKeyNot($call->caller_id)->whereNotNull('call_participants.joined_at')->count();
+                if ($answered === 0) {
+                    $call->forceFill(['status' => CallStatus::Missed])->save();
+                    $status = CallStatus::Missed;
+                }
+                $missedIds = $call->participants()->get()
+                    ->filter(fn (User $participant) => $call->participantStatus($participant->pivot) === CallParticipantStatus::Missed)
+                    ->modelKeys();
+                $call->participants()->newPivotQuery()->where('call_id', $call->id)
+                    ->where('status', CallParticipantStatus::Ringing->value)
+                    ->update(['status' => CallParticipantStatus::Missed->value]);
+                $call->participants()->newPivotQuery()->where('call_id', $call->id)
+                    ->where('status', CallParticipantStatus::Joined->value)
+                    ->update(['status' => CallParticipantStatus::Left->value, 'left_at' => $call->ended_at]);
+            }
+
             $message = $call->conversation->messages()->make([
                 'sender_id' => $call->caller_id,
                 'message_type' => MessageType::Call,
@@ -46,9 +66,14 @@ class FinishCall
                     'call_id' => $call->id,
                     'call_type' => $call->type->value,
                     'status' => $call->status->value,
-                    'duration' => $call->answered_at === null
+                    'duration' => $call->answered_at === null || $status === CallStatus::Missed
                         ? 0
                         : (int) $call->answered_at->diffInSeconds($call->ended_at),
+                    ...($call->is_group ? [
+                        'is_group' => true,
+                        // Everyone who took part, the caller included
+                        'participant_count' => $call->participants()->whereNotNull('call_participants.joined_at')->count(),
+                    ] : []),
                 ],
             ]);
             // The trace sits where the call ended in the conversation
@@ -60,8 +85,10 @@ class FinishCall
             $message->save();
             $call->conversation->touch();
 
-            return $message;
+            return [$message, $missedIds];
         });
+
+        [$message, $missedIds] = $message ?? [null, []];
 
         if ($message === null) {
             return false;
@@ -70,11 +97,15 @@ class FinishCall
         Realtime::send(new CallChanged($call));
 
         $message->load('sender');
-        Realtime::send(new MessageCreated($message, $call->conversation->participants()->pluck('users.id')->all()));
+        Realtime::send(new MessageCreated($message, $call->conversation->members()->pluck('users.id')->all()));
 
         // A call found expired long after is not worth a push any more
-        if ($status === CallStatus::Missed && $endedAt === null) {
-            $call->callee->notify(new MissedCall($call));
+        if ($endedAt === null) {
+            if ($call->is_group) {
+                User::query()->whereKey($missedIds)->get()->each(fn (User $user) => $user->notify(new MissedCall($call)));
+            } elseif ($status === CallStatus::Missed) {
+                $call->callee->notify(new MissedCall($call));
+            }
         }
 
         return true;

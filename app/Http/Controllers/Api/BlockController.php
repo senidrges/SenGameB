@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ContactRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BlockedUserResource;
+use App\Models\ContactRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -37,6 +39,12 @@ class BlockController extends Controller
         ]);
 
         $user->blockedUsers()->syncWithoutDetaching([$validated['user_id'] => ['created_at' => now()]]);
+
+        // Pending invitations between them disappear, without telling the blocked user
+        ContactRequest::query()
+            ->between($user, User::findOrFail($validated['user_id']))
+            ->pending()
+            ->update(['status' => ContactRequestStatus::Cancelled, 'responded_at' => now()]);
 
         return response()->noContent();
     }

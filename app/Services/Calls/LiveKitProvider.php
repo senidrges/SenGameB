@@ -5,6 +5,7 @@ namespace App\Services\Calls;
 use App\Enums\CallStatus;
 use App\Models\Call;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 /**
  * LiveKit Cloud relays the media through its servers: reliable on every
@@ -59,11 +60,26 @@ class LiveKitProvider implements CallProvider
      */
     public function participantMinutesThisMonth(): int
     {
-        return (int) Call::query()
+        $calls = Call::query()
             ->where('provider', $this->name())
             ->where('answered_at', '>=', now()->startOfMonth())
-            ->get(['answered_at', 'ended_at', 'status'])
-            ->sum(fn (Call $call): int => 2 * $this->minutes($call));
+            ->get(['id', 'is_group', 'answered_at', 'ended_at', 'status']);
+
+        // Group call: each participant counts for the time they were in it
+        return (int) $calls->sum(fn (Call $call): int => $call->is_group
+            ? $call->participants()->whereNotNull('call_participants.joined_at')->get()
+                ->sum(fn (User $participant): int => $this->span(
+                    Carbon::parse($participant->pivot->joined_at),
+                    $participant->pivot->left_at !== null ? Carbon::parse($participant->pivot->left_at) : $call->ended_at,
+                ))
+            : 2 * $this->minutes($call));
+    }
+
+    private function span(Carbon $from, ?Carbon $to): int
+    {
+        $to ??= now()->min($from->copy()->addHours(Call::MAX_HOURS));
+
+        return max(1, (int) ceil($from->diffInSeconds($to) / 60));
     }
 
     private function minutes(Call $call): int

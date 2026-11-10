@@ -61,7 +61,12 @@
                 <li>
                     <strong>Contacts</strong> (si vous l'autorisez) : les numéros de téléphone de votre répertoire
                     sont envoyés à notre serveur uniquement pour vous indiquer lesquels de vos contacts utilisent
-                    LoveGames. Ils sont comparés aux comptes existants puis <strong>ne sont pas conservés</strong>.
+                    LoveGames. Ils sont comparés aux comptes existants puis <strong>ne sont pas conservés</strong> :
+                    le serveur garde seulement la liste des comptes LoveGames trouvés parmi vos contacts, pour que vous
+                    puissiez discuter et jouer avec eux sans invitation. Cette liste est remplacée à chaque
+                    synchronisation et supprimée avec votre compte. Pour discuter avec une personne qui n'est pas dans
+                    vos contacts, vous lui envoyez une invitation (avec, si vous le souhaitez, un seul message de
+                    présentation) qu'elle accepte ou refuse.
                     L'application peut aussi enregistrer un nouveau contact dans votre répertoire, à votre demande.
                     Quand vous <strong>partagez un contact</strong> dans une conversation, seuls le nom et les numéros
                     du contact que vous choisissez sont envoyés à votre interlocuteur et conservés dans la conversation.

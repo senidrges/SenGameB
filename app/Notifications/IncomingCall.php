@@ -48,10 +48,16 @@ class IncomingCall extends PushNotification
             'declineUrl' => URL::temporarySignedRoute(
                 'calls.notification-decline',
                 now()->addSeconds(Call::RING_SECONDS + 60),
-                ['call' => $this->call->id],
+                // Group call: the link declines for this member only
+                ['call' => $this->call->id, ...($this->call->is_group ? ['user' => $notifiable->id] : [])],
             ),
         ];
         $body = $this->call->type === CallType::Video ? 'Appel vidéo entrant' : 'Appel audio entrant';
+
+        if ($this->call->is_group) {
+            $data['isGroup'] = '1';
+            $body = $this->call->type === CallType::Video ? 'Appel vidéo de groupe entrant' : 'Appel audio de groupe entrant';
+        }
 
         // Locked conversation: the caller stays hidden
         if ($this->isLockedFor($notifiable)) {
@@ -67,6 +73,25 @@ class IncomingCall extends PushNotification
         }
 
         $caller = $this->call->caller;
+
+        // Group call: the group's name and photo on the call screen
+        if ($this->call->is_group) {
+            $group = $this->call->conversation;
+
+            return new ExpoMessage(
+                title: (string) $group->name,
+                body: "{$caller->username} · {$body}",
+                data: [
+                    ...$data,
+                    'callerUsername' => (string) $group->name,
+                    'callerAvatarUrl' => $group->avatar_thumb_url ?? '',
+                ],
+                channelId: self::CHANNEL,
+                categoryId: self::CATEGORY,
+                priority: 'high',
+                ttl: Call::RING_SECONDS,
+            );
+        }
 
         return new ExpoMessage(
             title: $caller->username,

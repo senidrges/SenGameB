@@ -35,6 +35,16 @@ class CallProviders
         return $this->named('p2p');
     }
 
+    /**
+     * Group calls need a media server: LiveKit only, when available.
+     */
+    public function forGroupCall(): ?CallProvider
+    {
+        $livekit = $this->named('livekit');
+
+        return in_array('livekit', config('services.calls.providers'), true) && $livekit->isAvailable() ? $livekit : null;
+    }
+
     public function named(string $name): CallProvider
     {
         $class = self::PROVIDERS[$name] ?? throw new InvalidArgumentException("Unknown call provider [{$name}].");

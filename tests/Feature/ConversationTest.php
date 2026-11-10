@@ -49,6 +49,7 @@ class ConversationTest extends TestCase
             ->assertJsonPath('participant.id', $this->bob->id);
 
         $carol = User::factory()->create();
+        $this->alice->contacts()->attach($carol->id);
 
         $this->postJson('/api/v1/conversations', ['user_id' => $carol->id])->assertCreated();
         $this->assertDatabaseCount('conversations', 2);

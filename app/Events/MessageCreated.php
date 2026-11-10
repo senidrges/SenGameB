@@ -19,7 +19,7 @@ class MessageCreated implements ShouldBroadcastNow
     /**
      * @param  list<string>  $participantIds
      */
-    public function __construct(public Message $message, public array $participantIds) {}
+    public function __construct(public Message $message, public array $participantIds, public bool $toConversation = true) {}
 
     /**
      * @return list<PrivateChannel>
@@ -27,7 +27,8 @@ class MessageCreated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel("conversations.{$this->message->conversation_id}"),
+            // A notice for the admins only skips the channel every member listens to
+            ...($this->toConversation ? [new PrivateChannel("conversations.{$this->message->conversation_id}")] : []),
             ...array_map(fn (string $id) => new PrivateChannel("users.{$id}"), $this->participantIds),
         ];
     }
@@ -42,6 +43,6 @@ class MessageCreated implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return ['message' => MessageResource::make($this->message->loadMissing(['sender', 'replyTo.sender']))->resolve()];
+        return ['message' => MessageResource::make($this->message->loadMissing(['sender', 'replyTo.sender', 'mentions:id']))->resolve()];
     }
 }

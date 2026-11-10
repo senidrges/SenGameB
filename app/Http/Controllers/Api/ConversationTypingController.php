@@ -29,8 +29,12 @@ class ConversationTypingController extends Controller
 
         $user = $request->user();
 
-        $recipientIds = $conversation->participants()->get()
-            ->reject(fn (User $participant) => $participant->is($user) || $user->hasBlockWith($participant))
+        abort_unless($conversation->hasMember($user), 403);
+
+        // Blocks do not apply in groups, like WhatsApp
+        $recipientIds = $conversation->members()->get()
+            ->reject(fn (User $participant) => $participant->is($user)
+                || (! $conversation->isGroup() && $user->hasBlockWith($participant)))
             ->modelKeys();
 
         if ($recipientIds !== []) {

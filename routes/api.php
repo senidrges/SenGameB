@@ -19,8 +19,10 @@ use App\Http\Controllers\Api\CallSignalController;
 use App\Http\Controllers\Api\CallVideoController;
 use App\Http\Controllers\Api\ChatLockCodeController;
 use App\Http\Controllers\Api\ContactMatchController;
+use App\Http\Controllers\Api\ContactRequestController;
 use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\ConversationDisappearingController;
 use App\Http\Controllers\Api\ConversationLockController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\ConversationMuteController;
@@ -37,12 +39,16 @@ use App\Http\Controllers\Api\GameReadController;
 use App\Http\Controllers\Api\GameResetController;
 use App\Http\Controllers\Api\GameTemplateController;
 use App\Http\Controllers\Api\GameTypingController;
+use App\Http\Controllers\Api\GroupController;
+use App\Http\Controllers\Api\GroupInviteController;
+use App\Http\Controllers\Api\GroupMemberController;
 use App\Http\Controllers\Api\LiveKitWebhookController;
 use App\Http\Controllers\Api\LoveGameController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MessageDeliveryController;
 use App\Http\Controllers\Api\MessageForwardController;
 use App\Http\Controllers\Api\MessageHideController;
+use App\Http\Controllers\Api\MessageInfoController;
 use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoteController;
 use App\Http\Controllers\Api\PresenceController;
@@ -107,6 +113,12 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::get('username-availability', [UsernameAvailabilityController::class, 'show']);
     Route::post('contacts/match', [ContactMatchController::class, 'store']);
 
+    Route::get('contact-requests', [ContactRequestController::class, 'index']);
+    Route::post('contact-requests', [ContactRequestController::class, 'store'])->middleware('throttle:contact-requests');
+    Route::post('contact-requests/{contactRequest}/accept', [ContactRequestController::class, 'accept']);
+    Route::post('contact-requests/{contactRequest}/decline', [ContactRequestController::class, 'decline']);
+    Route::delete('contact-requests/{contactRequest}', [ContactRequestController::class, 'destroy']);
+
     Route::get('conversations', [ConversationController::class, 'index']);
     Route::post('conversations', [ConversationController::class, 'store']);
     Route::get('conversations/{conversation}', [ConversationController::class, 'show']);
@@ -123,6 +135,27 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::delete('conversations/{conversation}/lock', [ConversationLockController::class, 'destroy']);
     Route::post('conversations/{conversation}/mute', [ConversationMuteController::class, 'store']);
     Route::delete('conversations/{conversation}/mute', [ConversationMuteController::class, 'destroy']);
+    Route::put('conversations/{conversation}/disappearing', [ConversationDisappearingController::class, 'update']);
+
+    // WhatsApp-like groups
+    Route::post('groups', [GroupController::class, 'store']);
+    Route::get('groups/candidates', [GroupMemberController::class, 'candidates']);
+    Route::patch('groups/{conversation}', [GroupController::class, 'update']);
+    Route::patch('groups/{conversation}/settings', [GroupController::class, 'settings']);
+    Route::post('groups/{conversation}/avatar', [GroupController::class, 'updateAvatar']);
+    Route::delete('groups/{conversation}/avatar', [GroupController::class, 'destroyAvatar']);
+    Route::post('groups/{conversation}/members', [GroupMemberController::class, 'store']);
+    Route::delete('groups/{conversation}/members/{user}', [GroupMemberController::class, 'destroy']);
+    Route::put('groups/{conversation}/members/{user}/role', [GroupMemberController::class, 'updateRole']);
+    Route::post('groups/{conversation}/leave', [GroupMemberController::class, 'leave']);
+    Route::get('groups/{conversation}/invite', [GroupInviteController::class, 'show']);
+    Route::post('groups/{conversation}/invite/reset', [GroupInviteController::class, 'reset']);
+    Route::get('groups/{conversation}/join-requests', [GroupInviteController::class, 'requests']);
+    Route::post('groups/{conversation}/join-requests/{joinRequest}/approve', [GroupInviteController::class, 'approve']);
+    Route::delete('groups/{conversation}/join-requests/{joinRequest}', [GroupInviteController::class, 'reject']);
+    Route::get('group-invites/{code}', [GroupInviteController::class, 'preview']);
+    Route::post('group-invites/{code}/join', [GroupInviteController::class, 'join'])->middleware('throttle:30,1');
+    Route::delete('group-invites/{code}/request', [GroupInviteController::class, 'cancelRequest']);
 
     Route::post('conversations/{conversation}/calls', [CallController::class, 'store']);
     Route::get('calls/{call}', [CallController::class, 'show']);
@@ -139,6 +172,7 @@ Route::middleware(['auth:sanctum', 'abilities:'.AuthTokens::ACCESS_ABILITY, 'act
     Route::post('messages/{message}/forward', [MessageForwardController::class, 'store']);
     Route::post('messages/{message}/hide', [MessageHideController::class, 'store']);
     Route::post('messages/{message}/votes', [MessageVoteController::class, 'store']);
+    Route::get('messages/{message}/info', [MessageInfoController::class, 'show']);
 
     Route::apiResource('games', LoveGameController::class)->except('update');
     Route::post('games/{game}/activation', [GameActivationController::class, 'store']);

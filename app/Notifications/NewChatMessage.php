@@ -2,9 +2,11 @@
 
 namespace App\Notifications;
 
+use App\Enums\MessageType;
 use App\Models\Message;
 use App\Models\User;
 use App\Notifications\Messages\ExpoMessage;
+use App\Support\GroupEventText;
 
 class NewChatMessage extends PushNotification
 {
@@ -32,10 +34,34 @@ class NewChatMessage extends PushNotification
         }
 
         $sender = $this->message->sender;
+        $conversation = $this->message->conversation;
+
+        // Like WhatsApp: the group as title, "Alice : message" as body
+        if ($conversation->isGroup()) {
+            $body = $this->message->message_type === MessageType::System
+                ? GroupEventText::describe($this->message->payload ?? [], $notifiable)
+                : "{$sender->username} : {$this->preview()}";
+
+            return new ExpoMessage(
+                title: (string) $conversation->name,
+                body: $body,
+                data: [
+                    'type' => 'new_message',
+                    'conversationId' => $this->message->conversation_id,
+                    'messageId' => $this->message->id,
+                    // The chat opens with the group's name and photo
+                    'senderUsername' => (string) $conversation->name,
+                    'senderAvatarUrl' => $conversation->avatar_url ?? '',
+                    'isGroup' => '1',
+                ],
+                channelId: 'messages',
+                categoryId: self::CATEGORY,
+            );
+        }
 
         return new ExpoMessage(
             title: $sender->username,
-            body: $this->message->message_type->previewLabel($this->message->content, $this->message->payload, $this->message->file_name),
+            body: $this->preview(),
             data: [
                 'type' => 'new_message',
                 'conversationId' => $this->message->conversation_id,
@@ -46,6 +72,11 @@ class NewChatMessage extends PushNotification
             channelId: 'messages',
             categoryId: self::CATEGORY,
         );
+    }
+
+    private function preview(): string
+    {
+        return $this->message->message_type->previewLabel($this->message->content, $this->message->payload, $this->message->file_name);
     }
 
     private function isLockedFor(User $notifiable): bool

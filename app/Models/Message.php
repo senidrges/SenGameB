@@ -29,11 +29,19 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
     'file_size',
     'payload',
     'forwarded_from_id',
+    'expires_at',
+    'audience',
 ])]
 class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
     use HasFactory, HasReactions, HasUuids, HasVotes;
+
+    /**
+     * `audience` of a notice only the group admins (and its author) see,
+     * like WhatsApp when someone leaves.
+     */
+    public const AUDIENCE_ADMINS = 'admins';
 
     /**
      * The model's default values for attributes.
@@ -65,6 +73,7 @@ class Message extends Model
             'edited_at' => 'datetime',
             'deleted_at' => 'datetime',
             'file_size' => 'integer',
+            'expires_at' => 'datetime',
         ];
     }
 
@@ -73,18 +82,24 @@ class Message extends Model
      * Nothing is erased: the content and file stay in the database, only
      * MessageResource stops sending them.
      */
-    public function markDeletedForEveryone(): void
+    public function markDeletedForEveryone(?User $by = null): void
     {
         if ($this->is_deleted) {
             return;
         }
 
-        $this->forceFill(['is_deleted' => true, 'deleted_at' => now()])->save();
+        $this->forceFill([
+            'is_deleted' => true,
+            'deleted_at' => now(),
+            // A group admin deleting someone else's message: "Supprimé par un admin"
+            'deleted_by_id' => $by !== null && $by->id !== $this->sender_id ? $by->id : null,
+        ])->save();
     }
 
     /**
-     * Messages the user can see: not deleted "for me" and not older than
-     * the moment they deleted the conversation.
+     * Messages the user can see: not deleted "for me", not older than the
+     * moment they deleted the conversation and, in a group, sent while they
+     * were a member (after joining, before leaving).
      *
      * @param  Builder<Message>  $query
      */
@@ -93,11 +108,36 @@ class Message extends Model
     {
         $query
             ->whereDoesntHave('hiddenBy', fn (Builder $users) => $users->whereKey($user->id))
+            // Disappearing messages: gone once their time is up
+            ->where(fn (Builder $live) => $live->whereNull('messages.expires_at')->orWhere('messages.expires_at', '>', now()))
+            // Notices for the admins only (someone left), and for their author
+            ->where(fn (Builder $audience) => $audience
+                ->whereNull('messages.audience')
+                ->orWhere('messages.sender_id', $user->id)
+                ->orWhereExists(fn (QueryBuilder $admins) => $admins
+                    ->from('conversation_participants')
+                    ->whereColumn('conversation_participants.conversation_id', 'messages.conversation_id')
+                    ->where('conversation_participants.user_id', $user->id)
+                    ->where('conversation_participants.role', 'admin')
+                    ->whereNull('conversation_participants.left_at')))
             ->whereNotExists(fn (QueryBuilder $participants) => $participants
                 ->from('conversation_participants')
                 ->whereColumn('conversation_participants.conversation_id', 'messages.conversation_id')
                 ->where('conversation_participants.user_id', $user->id)
-                ->whereColumn('conversation_participants.deleted_at', '>=', 'messages.created_at'));
+                ->where(fn (QueryBuilder $hidden) => $hidden
+                    ->whereColumn('conversation_participants.deleted_at', '>=', 'messages.created_at')
+                    ->orWhereColumn('conversation_participants.history_from', '>', 'messages.created_at')
+                    ->orWhereColumn('conversation_participants.left_at', '<', 'messages.created_at')));
+    }
+
+    /**
+     * The group admin who deleted this message of someone else.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by_id');
     }
 
     /**
@@ -140,5 +180,26 @@ class Message extends Model
     public function hiddenBy(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'hidden_messages')->withPivot('hidden_at');
+    }
+
+    /**
+     * Group members named with @ in the message.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function mentions(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'message_mentions');
+    }
+
+    /**
+     * Messages whose disappearing time is up.
+     *
+     * @param  Builder<Message>  $query
+     */
+    #[Scope]
+    protected function expired(Builder $query): void
+    {
+        $query->whereNotNull('expires_at')->where('expires_at', '<=', now());
     }
 }

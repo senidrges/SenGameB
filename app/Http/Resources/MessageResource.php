@@ -39,7 +39,17 @@ class MessageResource extends JsonResource
             'reactions' => $this->is_deleted ? null : $this->reactions,
             'edited_at' => $this->edited_at,
             'is_deleted' => $this->is_deleted,
+            // Group: an admin deleted it, WhatsApp shows "Supprimé par un admin"
+            'deleted_by_admin' => $this->is_deleted && $this->deleted_by_id !== null
+                ? ['id' => $this->deleted_by_id, 'username' => $this->deletedBy?->username]
+                : null,
             'is_forwarded' => $this->forwarded_from_id !== null,
+            // Members named with @ (group)
+            'mentions' => $this->relationLoaded('mentions') ? $this->mentions->modelKeys() : [],
+            // Disappearing messages: when it goes
+            'expires_at' => $this->expires_at,
+            // "admins": a notice only the admins see
+            'audience' => $this->audience,
             'created_at' => $this->created_at,
             'sender' => ProfileResource::make($this->whenLoaded('sender')),
             'reply_to' => $this->whenLoaded('replyTo', fn () => $this->replyTo === null ? null : [

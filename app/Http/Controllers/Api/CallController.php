@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\FinishCall;
+use App\Actions\GroupCalls;
 use App\Enums\CallStatus;
 use App\Enums\CallType;
 use App\Events\CallChanged;
@@ -25,13 +26,20 @@ use Illuminate\Validation\Rule;
  */
 class CallController extends Controller
 {
-    public function store(Request $request, Conversation $conversation, CallProviders $providers, FinishCall $finishCall): CallResource
+    public function store(Request $request, Conversation $conversation, CallProviders $providers, FinishCall $finishCall, GroupCalls $groupCalls): CallResource
     {
         Gate::authorize('sendMessage', $conversation);
 
         $validated = $request->validate([
             'type' => ['required', Rule::enum(CallType::class)],
         ]);
+
+        // Group call: every member rings, the caller waits in the call
+        if ($conversation->isGroup()) {
+            $call = $groupCalls->start($conversation, $request->user(), CallType::from($validated['type']));
+
+            return CallResource::make($call->load(['caller', 'callee', 'participants', 'conversation']));
+        }
 
         $caller = $request->user();
         $callee = $conversation->participants()->whereKeyNot($caller->id)->firstOrFail();
@@ -66,20 +74,31 @@ class CallController extends Controller
         abort_unless($call->hasParticipant($request->user()), 404);
 
         // Nobody reported the end of the ringing: it was missed
-        if ($call->status === CallStatus::Ringing && ! $call->isRinging()) {
+        if (! $call->is_group && $call->status === CallStatus::Ringing && ! $call->isRinging()) {
             $finishCall->handle($call, CallStatus::Missed, $call->created_at->copy()->addSeconds(Call::RING_SECONDS));
             $call->refresh();
         }
 
-        return CallResource::make($call->load(['caller', 'callee']));
+        return CallResource::make($call->load(['caller', 'callee', 'participants', 'conversation']));
     }
 
     /**
      * The callee picks up: both sides then ask for their connection.
      */
-    public function accept(Request $request, Call $call, CallProviders $providers): JsonResponse
+    public function accept(Request $request, Call $call, CallProviders $providers, GroupCalls $groupCalls): JsonResponse
     {
         $user = $request->user();
+
+        // Group call: answer the ringing, or join it later from the group
+        if ($call->is_group) {
+            $groupCalls->join($call, $user);
+
+            return response()->json([
+                ...CallResource::make($call->load(['caller', 'callee', 'participants', 'conversation']))->resolve($request),
+                'connection' => $providers->named($call->provider)->connectionFor($call, $user),
+            ]);
+        }
+
         abort_unless($call->callee_id === $user->id, 404);
         abort_unless($call->isRinging(), 409, 'Cet appel est terminé.');
 
@@ -92,8 +111,14 @@ class CallController extends Controller
         ]);
     }
 
-    public function decline(Request $request, Call $call, FinishCall $finishCall): Response
+    public function decline(Request $request, Call $call, FinishCall $finishCall, GroupCalls $groupCalls): Response
     {
+        if ($call->is_group) {
+            $groupCalls->decline($call, $request->user());
+
+            return response()->noContent();
+        }
+
         abort_unless($call->callee_id === $request->user()->id, 404);
 
         if ($call->status === CallStatus::Ringing) {
@@ -106,9 +131,16 @@ class CallController extends Controller
     /**
      * Hang up. Before the answer, the callee missed the call.
      */
-    public function end(Request $request, Call $call, FinishCall $finishCall): Response
+    public function end(Request $request, Call $call, FinishCall $finishCall, GroupCalls $groupCalls): Response
     {
         abort_unless($call->hasParticipant($request->user()), 404);
+
+        // Group call: the user leaves; the call ends with its last participant
+        if ($call->is_group) {
+            $groupCalls->leave($call, $request->user());
+
+            return response()->noContent();
+        }
 
         if (! $call->status->isFinished()) {
             $finishCall->handle($call, $call->status === CallStatus::Ringing ? CallStatus::Missed : CallStatus::Ended);
@@ -125,6 +157,11 @@ class CallController extends Controller
         $user = $request->user();
         abort_unless($call->hasParticipant($user), 404);
         abort_unless($call->status === CallStatus::Ongoing, 409, 'Cet appel est terminé.');
+        abort_if(
+            $call->is_group && ! $call->participants()->whereKey($user->id)->wherePivot('status', 'joined')->exists(),
+            409,
+            "Vous n'êtes pas dans cet appel.",
+        );
 
         return response()->json($providers->named($call->provider)->connectionFor($call, $user));
     }

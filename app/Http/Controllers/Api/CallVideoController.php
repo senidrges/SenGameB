@@ -27,6 +27,6 @@ class CallVideoController extends Controller
             Realtime::send(new CallChanged($call));
         }
 
-        return CallResource::make($call->load(['caller', 'callee']));
+        return CallResource::make($call->load(['caller', 'callee', 'participants', 'conversation']));
     }
 }

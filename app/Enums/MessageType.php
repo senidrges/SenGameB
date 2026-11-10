@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Support\GroupEventText;
+
 enum MessageType: string
 {
     case Text = 'text';
@@ -14,6 +16,8 @@ enum MessageType: string
     case Event = 'event';
     // Trace of an audio or video call, written by the server (see FinishCall)
     case Call = 'call';
+    // Notice of a group (member added, name changed…), written by the server
+    case System = 'system';
 
     /**
      * Whether the message carries an uploaded file.
@@ -29,7 +33,7 @@ enum MessageType: string
      */
     public function canBeSent(): bool
     {
-        return $this !== self::Call;
+        return $this !== self::Call && $this !== self::System;
     }
 
     /**
@@ -64,6 +68,7 @@ enum MessageType: string
                 'declined' => '📞 Appel refusé',
                 default => ($payload['call_type'] ?? null) === 'video' ? '📹 Appel vidéo' : '📞 Appel audio',
             },
+            self::System => GroupEventText::describe($payload ?? []),
         };
     }
 

@@ -9,7 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * A call, shaped like the app's `Call` type. Load the caller and the callee.
+ * A call, shaped like the app's `Call` type. Load the caller and the callee,
+ * and for a group call its participants and conversation.
  *
  * @mixin Call
  */
@@ -23,7 +24,7 @@ class CallResource extends JsonResource
     public function toArray(Request $request): array
     {
         // Nobody reported the end of the ringing: it was missed
-        $status = $this->status === CallStatus::Ringing && ! $this->isRinging()
+        $status = ! $this->is_group && $this->status === CallStatus::Ringing && ! $this->isRinging()
             ? CallStatus::Missed
             : $this->status;
 
@@ -33,8 +34,19 @@ class CallResource extends JsonResource
             'type' => $this->type,
             'provider' => $this->provider,
             'status' => $status,
+            'is_group' => (bool) $this->is_group,
             'caller' => $this->participant($this->caller),
-            'callee' => $this->participant($this->callee),
+            'callee' => $this->callee === null ? null : $this->participant($this->callee),
+            // Group call: the group, and where each member stands
+            'group' => $this->when($this->is_group, fn () => [
+                'name' => $this->conversation?->name,
+                'avatar_url' => $this->conversation?->avatar_url,
+                'avatar_thumb_url' => $this->conversation?->avatar_thumb_url,
+            ]),
+            'participants' => $this->when($this->is_group, fn () => $this->participants->map(fn (User $user) => [
+                ...$this->participant($user),
+                'status' => $this->participantStatus($user->pivot),
+            ])->values()),
             'created_at' => $this->created_at,
             'answered_at' => $this->answered_at,
             'ended_at' => $this->ended_at,

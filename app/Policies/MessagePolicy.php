@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\MessageType;
 use App\Models\Message;
 use App\Models\User;
 
@@ -24,10 +25,23 @@ class MessagePolicy
     }
 
     /**
-     * Only the sender deletes a message for everyone.
+     * The sender deletes a message for everyone. Like WhatsApp, a group
+     * admin also deletes the messages of the others (group notices aside).
      */
     public function delete(User $user, Message $message): bool
     {
-        return $message->sender_id === $user->id;
+        if ($message->message_type === MessageType::System) {
+            return false;
+        }
+
+        return $message->sender_id === $user->id || $message->conversation->isAdmin($user);
+    }
+
+    /**
+     * "Infos du message": who received and read it, for its sender.
+     */
+    public function viewInfo(User $user, Message $message): bool
+    {
+        return $message->sender_id === $user->id && $message->conversation->hasParticipant($user);
     }
 }

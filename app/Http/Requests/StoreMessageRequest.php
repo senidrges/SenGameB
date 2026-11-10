@@ -35,7 +35,7 @@ class StoreMessageRequest extends FormRequest
         $folder = $this->attachmentFolder();
 
         return [
-            'message_type' => ['required', Rule::enum(MessageType::class)->except([MessageType::Call])],
+            'message_type' => ['required', Rule::enum(MessageType::class)->except([MessageType::Call, MessageType::System])],
             'content' => ['required_if:message_type,text', 'nullable', 'string', 'max:5000'],
             'attachment_path' => [
                 'exclude_unless:message_type,image,audio,file',
@@ -47,6 +47,7 @@ class StoreMessageRequest extends FormRequest
             'file_size' => ['exclude_unless:message_type,image,audio,file', 'nullable', 'integer', 'min:0'],
             ...$this->payloadRules(),
             'reply_to_id' => ['nullable', 'uuid', $this->replyToRule()],
+            ...$this->mentionRules(),
         ];
     }
 
@@ -101,7 +102,7 @@ class StoreMessageRequest extends FormRequest
     /**
      * Attributes of the message to create.
      *
-     * @return array{message_type: string, content: string|null, file_path: string|null, file_name: string|null, file_size: int|null, payload: array<string, mixed>|null, reply_to_id: string|null}
+     * @return array{message_type: string, content: string|null, file_path: string|null, file_name: string|null, file_size: int|null, payload: array<string, mixed>|null, reply_to_id: string|null, mentions: list<string>}
      */
     public function messageAttributes(): array
     {
@@ -116,6 +117,7 @@ class StoreMessageRequest extends FormRequest
             'file_size' => $validated['file_size'] ?? null,
             'payload' => $this->payloadOf($type, $validated['payload'] ?? []),
             'reply_to_id' => $validated['reply_to_id'] ?? null,
+            'mentions' => array_values($validated['mentions'] ?? []),
         ];
     }
 
@@ -189,6 +191,29 @@ class StoreMessageRequest extends FormRequest
     protected function replyToRule(): Exists
     {
         return Rule::exists('messages', 'id')->where('conversation_id', $this->conversation()->id);
+    }
+
+    /**
+     * @mentions of a group: current members only.
+     *
+     * @return array<string, mixed>
+     */
+    protected function mentionRules(): array
+    {
+        if (! $this->conversation()->isGroup()) {
+            return ['mentions' => ['exclude']];
+        }
+
+        return [
+            'mentions' => ['nullable', 'array', 'max:50'],
+            'mentions.*' => [
+                'uuid',
+                'distinct',
+                Rule::exists('conversation_participants', 'user_id')
+                    ->where('conversation_id', $this->conversation()->id)
+                    ->whereNull('left_at'),
+            ],
+        ];
     }
 
     private function conversation(): Conversation

@@ -45,6 +45,6 @@ class MessageUpdated implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return ['message' => MessageResource::make($this->message)->resolve()];
+        return ['message' => MessageResource::make($this->message->loadMissing('mentions:id'))->resolve()];
     }
 }

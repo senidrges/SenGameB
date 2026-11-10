@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\FinishCall;
+use App\Actions\GroupCalls;
 use App\Enums\CallStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Call;
+use App\Models\User;
 use App\Services\Calls\HmacJwt;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -17,7 +19,7 @@ use Illuminate\Http\Response;
  */
 class LiveKitWebhookController extends Controller
 {
-    public function __invoke(Request $request, FinishCall $finishCall): Response
+    public function __invoke(Request $request, FinishCall $finishCall, GroupCalls $groupCalls): Response
     {
         $config = config('services.livekit');
         $body = $request->getContent();
@@ -30,6 +32,16 @@ class LiveKitWebhookController extends Controller
                 || ! hash_equals(base64_encode(hash('sha256', $body, true)), (string) ($claims['sha256'] ?? '')),
             401,
         );
+
+        // Group call: someone's phone left the room (even without hanging up)
+        if ($request->json('event') === 'participant_left') {
+            $call = Call::find($request->json('room.name'));
+            $user = User::find($request->json('participant.identity'));
+
+            if ($call !== null && $call->is_group && $user !== null) {
+                $groupCalls->leave($call, $user);
+            }
+        }
 
         if ($request->json('event') === 'room_finished') {
             $call = Call::find($request->json('room.name'));

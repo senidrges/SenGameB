@@ -28,7 +28,7 @@ class MessageController extends Controller
 
         $message->forceFill(['content' => $validated['content'], 'edited_at' => now()])->save();
 
-        Realtime::send(new MessageUpdated($message));
+        Realtime::send(new MessageUpdated($message->load('mentions:id')));
 
         return MessageResource::make($message);
     }
@@ -37,14 +37,16 @@ class MessageController extends Controller
      * Delete a message for everyone. It stays in the thread as "deleted" and
      * its content is kept in the database (soft delete).
      */
-    public function destroy(Message $message): MessageResource
+    public function destroy(Request $request, Message $message): MessageResource
     {
         Gate::authorize('delete', $message);
 
-        $message->markDeletedForEveryone();
+        // A group admin may delete the message of someone else
+        $message->markDeletedForEveryone($request->user());
+        $message->load('mentions:id');
 
         // The conversation lists show the last message: they refresh too
-        Realtime::send(new MessageUpdated($message, $message->conversation->participants()->pluck('users.id')->all()));
+        Realtime::send(new MessageUpdated($message, $message->conversation->members()->pluck('users.id')->all()));
 
         return MessageResource::make($message);
     }

@@ -43,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
             Str::lower((string) $request->input('email')).'|'.$request->ip(),
         ));
 
+        // Invitations to strangers: enough for real use, not for spamming
+        RateLimiter::for('contact-requests', fn (Request $request) => Limit::perHour(30)->by($request->user()?->id ?: $request->ip()));
+
         RateLimiter::for('reports', fn (Request $request) => Limit::perHour(30)->by($request->user()?->id ?: $request->ip()));
 
         // The search bar checks the secret code as the user types

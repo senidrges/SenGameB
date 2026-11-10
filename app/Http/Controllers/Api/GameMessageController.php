@@ -14,6 +14,7 @@ use App\Support\Realtime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 
 class GameMessageController extends Controller
@@ -30,7 +31,7 @@ class GameMessageController extends Controller
      */
     public function store(StoreGameMessageRequest $request, LoveGame $game, SendGameMessage $sendGameMessage): JsonResponse
     {
-        $message = $sendGameMessage->handle($game, $request->user(), $request->messageAttributes());
+        $message = $sendGameMessage->handle($game, $request->user(), Arr::except($request->messageAttributes(), ['mentions']));
 
         return GameMessageResource::make($message)->response()->setStatusCode(201);
     }

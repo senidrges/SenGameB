@@ -42,6 +42,16 @@ class StoreGameMessageRequest extends StoreMessageRequest
         return Rule::exists('game_messages', 'id')->where('game_id', $this->game()->id);
     }
 
+    /**
+     * No @mentions in game chats.
+     *
+     * @return array<string, mixed>
+     */
+    protected function mentionRules(): array
+    {
+        return ['mentions' => ['exclude']];
+    }
+
     private function game(): LoveGame
     {
         return $this->route('game');

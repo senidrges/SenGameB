@@ -30,6 +30,8 @@ class StoreLoveGameRequest extends FormRequest
 
                     if ($player !== null && $this->user()->hasBlockWith($player)) {
                         $fail('Vous ne pouvez pas inviter cet utilisateur.');
+                    } elseif ($player !== null && ! $this->user()->canReach($player)) {
+                        $fail("Vous n'avez pas le numéro de @{$player->username} : envoyez-lui d'abord une invitation.");
                     }
                 },
             ],

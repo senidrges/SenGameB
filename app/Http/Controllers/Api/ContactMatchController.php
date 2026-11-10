@@ -12,7 +12,10 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ContactMatchController extends Controller
 {
     /**
-     * Find the users whose phone number is in the device's contacts.
+     * Find the users whose phone number is in the device's contacts, and
+     * remember them: like on WhatsApp, the user can talk and play with them
+     * without an invitation. The list mirrors the phone at each sync; the
+     * numbers themselves are never stored.
      */
     public function store(Request $request): AnonymousResourceCollection
     {
@@ -36,6 +39,8 @@ class ContactMatchController extends Controller
                 ->whereNull('suspended_at')
                 ->whereIn('phone_number', $chunk->all())
                 ->get());
+
+        $request->user()->contacts()->sync($users->pluck('id')->unique()->all());
 
         return ProfileResource::collection($users);
     }

@@ -22,9 +22,13 @@ class MissedCall extends PushNotification
             ->wherePivotNotNull('locked_at')
             ->exists();
 
+        if ($this->call->is_group) {
+            $kind = $this->call->type === CallType::Video ? 'Appel vidéo de groupe manqué' : 'Appel audio de groupe manqué';
+        }
+
         return new ExpoMessage(
-            title: $isLocked ? 'LoveGames' : $this->call->caller->username,
-            body: $kind,
+            title: $isLocked ? 'LoveGames' : ($this->call->is_group ? (string) $this->call->conversation->name : $this->call->caller->username),
+            body: $this->call->is_group && ! $isLocked ? "{$this->call->caller->username} · {$kind}" : $kind,
             data: [
                 'type' => 'missed_call',
                 'callId' => $this->call->id,

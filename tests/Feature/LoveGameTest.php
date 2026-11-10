@@ -31,6 +31,8 @@ class LoveGameTest extends TestCase
 
         $this->organizer = User::factory()->withPushToken()->create();
         $this->player = User::factory()->withPushToken()->create();
+        // The organizer has the player's number: they can play together
+        $this->organizer->contacts()->attach($this->player->id);
     }
 
     public function test_creating_a_game_registers_players_items_and_notifies_them(): void

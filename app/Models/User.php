@@ -110,6 +110,69 @@ class User extends Authenticatable
     }
 
     /**
+     * Whether the two users may talk and play together, like on WhatsApp:
+     * one has the other's number in their phone, an invitation was
+     * accepted, or they already have a conversation. Blocks are checked
+     * separately (a blocked contact keeps the read-only history).
+     */
+    public function canReach(User $other): bool
+    {
+        return ! $this->is($other) && in_array($other->id, $this->reachableIdsAmong([$other->id]), true);
+    }
+
+    /**
+     * The users among $ids this user can reach (see canReach()), in a few
+     * queries for a whole list.
+     *
+     * @param  list<string>  $ids
+     * @return list<string>
+     */
+    public function reachableIdsAmong(array $ids): array
+    {
+        $ids = array_values(array_diff(array_unique($ids), [$this->id]));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $inMyPhone = DB::table('user_contacts')->where('owner_id', $this->id)->whereIn('contact_id', $ids)->pluck('contact_id');
+        $haveMyNumber = DB::table('user_contacts')->where('contact_id', $this->id)->whereIn('owner_id', $ids)->pluck('owner_id');
+
+        $invitedAccepted = ContactRequest::query()->accepted()->where('sender_id', $this->id)->whereIn('recipient_id', $ids)->pluck('recipient_id');
+        $acceptedMine = ContactRequest::query()->accepted()->where('recipient_id', $this->id)->whereIn('sender_id', $ids)->pluck('sender_id');
+
+        $keys = collect($ids)->mapWithKeys(fn (string $id) => [Conversation::directKeyForIds($this->id, $id) => $id]);
+        $talkedTo = Conversation::query()->whereIn('direct_key', $keys->keys())->pluck('direct_key')->map(fn (string $key) => $keys[$key]);
+
+        // Like WhatsApp, the members of a group can write to each other
+        $inMyGroups = DB::table('conversation_participants as mine')
+            ->join('conversations', 'conversations.id', '=', 'mine.conversation_id')
+            ->join('conversation_participants as theirs', 'theirs.conversation_id', '=', 'mine.conversation_id')
+            ->where('conversations.type', 'group')
+            ->where('mine.user_id', $this->id)
+            ->whereNull('mine.left_at')
+            ->whereNull('theirs.left_at')
+            ->whereIn('theirs.user_id', $ids)
+            ->pluck('theirs.user_id');
+
+        return $inMyPhone->merge($haveMyNumber)->merge($invitedAccepted)->merge($acceptedMine)->merge($talkedTo)->merge($inMyGroups)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * LoveGames users found in this user's phone contacts (only the matched
+     * accounts are stored, never the numbers).
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function contacts(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_contacts', 'owner_id', 'contact_id');
+    }
+
+    /**
      * Leave out the users the viewer blocked or was blocked by.
      */
     #[Scope]
@@ -186,7 +249,7 @@ class User extends Authenticatable
     public function conversations(): BelongsToMany
     {
         return $this->belongsToMany(Conversation::class, 'conversation_participants')
-            ->withPivot(['joined_at', 'archived_at', 'locked_at', 'muted_at', 'muted_until', 'deleted_at']);
+            ->withPivot(Conversation::PIVOT_COLUMNS);
     }
 
     /**
